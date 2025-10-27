@@ -1,57 +1,71 @@
 const Rating = require('../models/Rating');
+const Post = require('../models/Post');
 const mongoose = require('mongoose');
 
 exports.createRating = async (req, res) => {
   try {
-    const { place, tour, rating } = req.body;
-    if (!place && !tour) {
-      return res.status(400).json({ message: 'Place or tour ID is required' });
-    }
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    const { postId, rating } = req.body;
+
+    if (!postId || !rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: "Valid post ID and rating (1-5) are required" });
     }
 
-    const existingRating = await Rating.findOne({
-      user: req.user._id,
-      place: place || null,
-      tour: tour || null,
-    });
-    if (existingRating) {
-      return res.status(400).json({ message: 'You have already rated this item' });
+    if (!mongoose.isValidObjectId(postId)) {
+      return res.status(400).json({ message: "Invalid post ID" });
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const existing = await Rating.findOne({ user: req.user._id, post: postId });
+    if (existing) {
+      // Update existing rating
+      existing.rating = rating;
+      await existing.save();
+      const populated = await existing.populate("user", "name");
+      return res.status(200).json(populated);
     }
 
     const newRating = new Rating({
       user: req.user._id,
-      place,
-      tour,
+      post: postId,
       rating,
     });
     await newRating.save();
-    res.status(201).json(newRating);
+
+    post.ratings.push(newRating._id);
+    await post.save();
+
+    const populated = await newRating.populate("user", "name");
+    res.status(201).json(populated);
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 exports.getRatings = async (req, res) => {
   try {
-    const { placeId, tourId } = req.query;
-    if (!placeId && !tourId) {
-      return res.status(400).json({ message: 'Place or tour ID is required' });
-    }
-    if (placeId && !mongoose.isValidObjectId(placeId)) {
-      return res.status(400).json({ message: 'Invalid place ID' });
-    }
-    if (tourId && !mongoose.isValidObjectId(tourId)) {
-      return res.status(400).json({ message: 'Invalid tour ID' });
+    const { postId } = req.query;
+
+    if (!postId || !mongoose.isValidObjectId(postId)) {
+      return res.status(400).json({ message: 'Valid post ID is required' });
     }
 
-    const ratings = await Rating.find({
-      place: placeId || null,
-      tour: tourId || null,
-    }).populate('user', 'name');
-    res.json(ratings);
+    const ratings = await Rating.find({ post: postId })
+      .populate('user', 'name')
+      .sort({ createdAt: -1 });
+
+    // Tính trung bình
+    const avg = ratings.length > 0
+      ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+      : 0;
+
+    res.json({ ratings, average: parseFloat(avg.toFixed(1)), count: ratings.length });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 };

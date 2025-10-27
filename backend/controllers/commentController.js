@@ -1,60 +1,55 @@
-const Comment = require('../models/comments');
+const Comment = require('../models/Comment');
+const Post = require('../models/Post');
 const mongoose = require('mongoose');
 
 exports.createComment = async (req, res) => {
   try {
-    const { place, tour, content } = req.body;
+    const { postId, content } = req.body;
 
-    // Kiểm tra nếu không có place hoặc tour
-    if (!place && !tour) {
-      return res.status(400).json({ message: 'Place or tour ID is required' });
+    if (!postId || !content) {
+      return res.status(400).json({ message: "Post ID và nội dung là bắt buộc" });
     }
 
-    // Kiểm tra content
-    if (!content) {
-      return res.status(400).json({ message: 'Content is required' });
+    if (!mongoose.isValidObjectId(postId)) {
+      return res.status(400).json({ message: "Post ID không hợp lệ" });
     }
 
-    // Tạo comment mới
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Không tìm thấy bài viết" });
+    }
+
     const comment = new Comment({
-      user: req.user._id,
-      place,
-      tour,
+      user: req.user?._id || null, // Cho phép user là null
+      post: postId,
       content,
     });
 
     await comment.save();
 
-    res.status(201).json(comment);
+    post.comments.push(comment._id);
+    await post.save();
+
+    const populated = await comment.populate("user", "name");
+    res.status(201).json(populated);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Lỗi trong createComment:", err);
+    res.status(500).json({ message: "Lỗi server", error: err.message });
   }
 };
 
 exports.getComments = async (req, res) => {
   try {
-    const { placeId, tourId } = req.query;
+    const { postId } = req.query;
 
-    // Kiểm tra nếu không có placeId hoặc tourId
-    if (!placeId && !tourId) {
-      return res.status(400).json({ message: 'Place or tour ID is required' });
+    if (!postId || !mongoose.isValidObjectId(postId)) {
+      return res.status(400).json({ message: 'Valid post ID is required' });
     }
 
-    // Validate ObjectId
-    if (placeId && !mongoose.isValidObjectId(placeId)) {
-      return res.status(400).json({ message: 'Invalid place ID' });
-    }
-    if (tourId && !mongoose.isValidObjectId(tourId)) {
-      return res.status(400).json({ message: 'Invalid tour ID' });
-    }
+    const comments = await Comment.find({ post: postId })
+      .populate('user', 'name')
+      .sort({ createdAt: -1 });
 
-    // Tìm comment theo place hoặc tour
-    const filter = {};
-    if (placeId) filter.place = placeId;
-    if (tourId) filter.tour = tourId;
-
-    const comments = await Comment.find(filter).populate('user', 'name');
     res.json(comments);
   } catch (err) {
     console.error(err);
@@ -67,17 +62,13 @@ exports.updateComment = async (req, res) => {
     const { id } = req.params;
     const { content } = req.body;
 
-    // Validate comment ID
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: 'Invalid comment ID' });
     }
-
-    // Validate content
     if (!content) {
       return res.status(400).json({ message: 'Content is required' });
     }
 
-    // Cập nhật comment (chỉ owner mới được cập nhật)
     const comment = await Comment.findOneAndUpdate(
       { _id: id, user: req.user._id },
       { content, updatedAt: Date.now() },
@@ -94,6 +85,7 @@ exports.updateComment = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 exports.deleteComment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -102,11 +94,16 @@ exports.deleteComment = async (req, res) => {
       return res.status(400).json({ message: 'Invalid comment ID' });
     }
 
-    // Chỉ cho phép user chủ sở hữu xóa comment
     const comment = await Comment.findOneAndDelete({ _id: id, user: req.user._id });
     if (!comment) {
       return res.status(404).json({ message: 'Comment not found or unauthorized' });
     }
+
+    // Xóa khỏi mảng comments trong post
+    await Post.updateOne(
+      { _id: comment.post },
+      { $pull: { comments: comment._id } }
+    );
 
     res.json({ message: 'Comment deleted successfully' });
   } catch (err) {
