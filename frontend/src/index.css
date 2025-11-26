@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Da Nang Tourism Color Palette */
+    --background: 0 0% 100%;
+    --foreground: 213 31% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 213 31% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 31% 12%;
+
+    /* Ocean Blue Primary */
+    --primary: 207 89% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Sunset Orange Secondary */
+    --secondary: 25 100% 65%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Soft Sky */
+    --muted: 210 40% 96%;
+    --muted-foreground: 213 20% 50%;
+
+    /* Tropical Accent */
+    --accent: 158 64% 52%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 207 89% 45%;
+
+    --radius: 0.75rem;
+
+    /* Custom Design Tokens */
+    --ocean-blue: 207 89% 45%;
+    --sunset-orange: 25 100% 65%;
+    --tropical-green: 158 64% 52%;
+    --sky-blue: 199 89% 48%;
+    --warm-sand: 45 79% 86%;
+    
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--ocean-blue)), hsl(var(--sky-blue)));
+    --gradient-sunset: linear-gradient(135deg, hsl(var(--sunset-orange)), hsl(25 95% 55%));
+    --gradient-tropical: linear-gradient(135deg, hsl(var(--tropical-green)), hsl(158 54% 42%));
+    
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -2px hsl(var(--ocean-blue) / 0.1);
+    --shadow-medium: 0 8px 30px -4px hsl(var(--ocean-blue) / 0.15);
+    --shadow-strong: 0 20px 40px -8px hsl(var(--ocean-blue) / 0.2);
+    
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 213 31% 8%;
+    --foreground: 0 0% 95%;
+
+    --card: 213 31% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 213 31% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 207 89% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 25 100% 70%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 213 31% 15%;
+    --muted-foreground: 213 20% 65%;
+
+    --accent: 158 64% 62%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 70%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 213 31% 20%;
+    --input: 213 31% 20%;
+    --ring: 207 89% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+  
+  .sunset-gradient {
+    background: var(--gradient-sunset);
+  }
+  
+  .tropical-gradient {
+    background: var(--gradient-tropical);
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-md bg-background/80 border border-white/20;
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .card-hover {
+    transition: var(--transition-smooth);
+  }
+  
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-medium);
+  }
+}
