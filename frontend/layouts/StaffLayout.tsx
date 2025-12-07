@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { SidebarProvider, SidebarTrigger } from "../src/components/ui/sidebar";
-import { StaffSidebar } from "../src/components/admin/StaffSidebar";
+import { StaffSidebar } from "../src/components/staff/StaffSidebar";
 
 interface StaffLayoutProps {
   children: ReactNode;

@@ -1,91 +1,82 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Header from "@/components/layouts/Header";
 import Footer from "@/components/layouts/Footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import {
   ArrowLeft,
   ShieldCheck,
-  CreditCard,
-  Calendar as CalendarIcon,
+  Calendar,
   Users,
-  Banknote,
-  Copy,
-  Smartphone,
-  Clock, // ⬅️ icon số ngày
+  Clock,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 type Booking = {
   _id: string;
-  tour?: { _id: string; title: string; price?: number; duration?: number; days?: number; durationDays?: number };
-  user?: { _id: string; name?: string };
+  tour?: {
+    _id: string;
+    title: string;
+    price?: number;
+    duration?: number;
+    days?: number;
+    durationDays?: number;
+  };
   name: string;
   phone: string;
-  bookingDate: string; // ISO
+  bookingDate: string;
   people: number;
   note?: string;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "confirmed" | "paid_pending" | "paid" | "cancelled";
   createdAt: string;
-  duration?: number; // fallback
 };
 
 const currencyVN = (n?: number) =>
   typeof n === "number" ? new Intl.NumberFormat("vi-VN").format(n) + "đ" : "-";
 
 const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  new Date(dateStr).toLocaleDateString("vi-VN");
 
 const getDays = (b: any) =>
-  b?.tour?.duration ?? b?.tour?.days ?? b?.tour?.durationDays ?? b?.duration ?? 1;
+  b?.tour?.duration ?? b?.tour?.days ?? b?.tour?.durationDays ?? 1;
 
 export default function Payment() {
-  const { bookingId } = useParams();
+  const { bookingId } = useParams<{ bookingId: string }>();
+  const [searchParams] = useSearchParams();
+  const paymentResult = searchParams.get("payment"); // success | failed
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [activeMethod, setActiveMethod] = useState<"card" | "bank" | "ewallet">("card");
 
-  // Form thẻ
-  const [cardName, setCardName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExp, setCardExp] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
-
-  // Lấy danh sách booking của chính user, rồi tìm booking theo id
+  // Lấy danh sách booking của user
   useEffect(() => {
     const fetchBookings = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
-          toast({ title: "Chưa đăng nhập!", description: "Vui lòng đăng nhập để thanh toán." });
           navigate("/login");
           return;
         }
+
         const res = await fetch("http://localhost:5000/api/bookings", {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.message || "Không thể tải booking");
-        }
+        if (!res.ok) throw new Error(data?.message || "Lỗi tải dữ liệu");
         setBookings(data);
       } catch (err: any) {
-        toast({ title: "Lỗi", description: err.message });
+        toast({
+          title: "Lỗi",
+          description: err.message,
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -98,65 +89,158 @@ export default function Payment() {
     [bookings, bookingId]
   );
 
-  const pricePer = booking?.tour?.price ?? 0;
-  const total = (booking?.people ?? 0) * pricePer;
+  const total = (booking?.people ?? 0) * (booking?.tour?.price ?? 0);
+
+  // Cho phép thanh toán khi đơn đang confirmed (chờ thanh toán)
   const canPay = booking?.status === "confirmed";
-  const days = getDays(booking);
 
-  const copy = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({ title: "Đã sao chép", description: `${label} đã được copy.` });
-    } catch {
-      toast({ title: "Copy thất bại", description: "Vui lòng copy thủ công." });
-    }
-  };
+  // Xem như đã thanh toán nếu status là paid hoặc paid_pending
+  const isPaid =
+    booking && (booking.status === "paid" || booking.status === "paid_pending");
 
-  const handlePay = async () => {
-    if (!booking) return;
-    if (!canPay) {
-      toast({ title: "Không thể thanh toán", description: "Đơn chưa được xác nhận." });
+  // ===== MO MO =====
+  const handleMomoPayment = async () => {
+    if (!booking || paying) return;
+    if (!total || total <= 0) {
+      toast({
+        title: "Không thể thanh toán",
+        description: "Tổng tiền không hợp lệ.",
+        variant: "destructive",
+      });
       return;
     }
 
-    // Validate theo phương thức
-    if (activeMethod === "card") {
-      if (!cardName || !cardNumber || !cardExp || !cardCvv) {
-        toast({ title: "Thiếu thông tin", description: "Vui lòng điền đầy đủ thông tin thẻ." });
-        return;
-      }
-      if (cardNumber.replace(/\s/g, "").length < 12) {
-        toast({ title: "Số thẻ chưa hợp lệ", description: "Vui lòng kiểm tra lại số thẻ." });
-        return;
-      }
-    }
+    setPaying(true);
+    toast({
+      title: "Đang chuyển đến MoMo...",
+      description: "Vui lòng chờ...",
+    });
 
     try {
-      // TODO: call real payment API ở đây nếu có
-      // ví dụ: POST /api/payments/checkout { bookingId, method, amount }
-      toast({
-        title: "Thanh toán thành công",
-        description: `Đã thanh toán ${currencyVN(total)} cho ${booking?.tour?.title}.`,
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/payments/momo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: total,
+          bookingId: booking._id,
+        }),
       });
-      navigate("/my-bookings");
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.message || "Lỗi tạo thanh toán MoMo");
+      if (data.payUrl) {
+        window.location.href = data.payUrl;
+      } else {
+        throw new Error("Không nhận được payUrl từ MoMo");
+      }
     } catch (err: any) {
-      toast({ title: "Thanh toán thất bại", description: err.message || "Có lỗi xảy ra." });
+      toast({
+        title: "Lỗi thanh toán MoMo",
+        description: err.message,
+        variant: "destructive",
+      });
+      setPaying(false);
     }
   };
 
-  if (loading) return <div className="text-center py-20">Đang tải…</div>;
-  if (!booking) {
+  // ===== VNPAY =====
+  const handleVnpayPayment = async () => {
+    if (!booking || paying) return;
+    if (!total || total <= 0) {
+      toast({
+        title: "Không thể thanh toán",
+        description: "Tổng tiền không hợp lệ.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPaying(true);
+    toast({
+      title: "Đang chuyển đến VNPAY...",
+      description: "Vui lòng chờ...",
+    });
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/payments/vnpay", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: total,
+          bookingId: booking._id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(
+          data.message || "Không thể tạo thanh toán VNPAY"
+        );
+      if (data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+      } else {
+        throw new Error("Không nhận được paymentUrl từ VNPAY");
+      }
+    } catch (err: any) {
+      toast({
+        title: "Lỗi thanh toán VNPAY",
+        description: err.message,
+        variant: "destructive",
+      });
+      setPaying(false);
+    }
+  };
+
+  // ===== UI KẾT QUẢ THANH TOÁN =====
+  if (paymentResult === "success" || isPaid) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100">
         <Header />
-        <main className="py-30">
-          <div className="container mx-auto px-4 max-w-3xl">
-            <Button onClick={() => navigate(-1)} variant="ghost" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Quay lại
-            </Button>
-            <Card>
-              <CardContent className="p-8 text-center">Không tìm thấy booking.</CardContent>
-            </Card>
+        <main className="py-20">
+          <div className="container mx-auto px-4 max-w-4xl text-center">
+            <div className="inline-flex items-center justify-center w-32 h-32 bg-green-100 rounded-full mb-8">
+              <CheckCircle2 className="w-20 h-20 text-green-600" />
+            </div>
+            <h1 className="text-5xl font-bold text-green-700 mb-6">
+              Thanh toán thành công!
+            </h1>
+            <p className="text-2xl text-gray-700 mb-4">
+              Cảm ơn quý khách đã tin tưởng{" "}
+              <strong className="text-pink-600">Danang Travel</strong>
+            </p>
+            <p className="text-xl text-gray-600 mb-10">
+              Mã đơn hàng:{" "}
+              <span className="font-bold text-pink-600 text-3xl">
+                #{bookingId?.slice(-6).toUpperCase()}
+              </span>
+            </p>
+            <div className="flex flex-col sm:flex-row gap-6 justify-center">
+              <Button
+                size="lg"
+                className="text-lg px-12 py-6"
+                onClick={() => navigate("/my-bookings")}
+              >
+                Xem chi tiết đơn hàng
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-lg px-12 py-6"
+                onClick={() => navigate("/")}
+              >
+                Về trang chủ
+              </Button>
+            </div>
+            <p className="mt-10 text-gray-500 text-lg">
+              Vé tour sẽ được gửi qua email trong vòng 5 phút
+            </p>
           </div>
         </main>
         <Footer />
@@ -164,280 +248,215 @@ export default function Payment() {
     );
   }
 
+  if (paymentResult === "failed") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50">
+        <Header />
+        <main className="py-20 text-center">
+          <XCircle className="w-32 h-32 mx-auto text-red-600 mb-8" />
+          <h1 className="text-5xl font-bold text-red-700 mb-6">
+            Thanh toán không thành công
+          </h1>
+          <p className="text-xl text-gray-700 mb-10">
+            Quý khách vui lòng thử lại
+          </p>
+          <Button
+            size="lg"
+            onClick={() => navigate(`/payment/${bookingId}`)}
+          >
+            Thử thanh toán lại
+          </Button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // ===== UI ĐANG LOAD / LỖI =====
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center text-2xl">
+        Đang tải...
+      </div>
+    );
+
+  if (!booking)
+    return (
+      <div className="min-h-screen text-center py-20 text-2xl text-red-600">
+        Không tìm thấy đơn hàng
+      </div>
+    );
+
+  // ===== UI THANH TOÁN =====
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <Header />
       <main className="py-20">
         <div className="container mx-auto px-4 max-w-5xl">
-          <Button onClick={() => navigate(-1)} variant="ghost" className="mb-4">
+          <Button
+            onClick={() => navigate(-1)}
+            variant="ghost"
+            className="mb-6"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" /> Quay lại
           </Button>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Tóm tắt đơn */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Tóm tắt đơn hàng */}
             <div className="lg:col-span-1">
               <Card>
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold">Tóm tắt đơn</h2>
+                <CardContent className="p-6 space-y-5">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold">
+                      Thông tin đơn hàng
+                    </h2>
                     <Badge
-                      className={
-                        booking.status === "confirmed"
-                          ? "bg-green-100 text-green-800"
-                          : booking.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-700"
+                      variant={
+                        isPaid ? "default" : canPay ? "secondary" : "outline"
                       }
                     >
-                      {booking.status === "confirmed"
+                      {isPaid
+                        ? "Đã thanh toán"
+                        : canPay
                         ? "Đã xác nhận"
-                        : booking.status === "pending"
-                        ? "Đang xử lý"
-                        : "Đã hủy"}
+                        : "Đang xử lý"}
                     </Badge>
                   </div>
-
-                  <div>
-                    <div className="font-semibold">{booking.tour?.title}</div>
-
-                    <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                      <CalendarIcon className="w-4 h-4" />
-                      <span>Ngày đi: {formatDate(booking.bookingDate)}</span>
+                  <h3 className="font-semibold text-lg">
+                    {booking.tour?.title}
+                  </h3>
+                  <div className="text-sm text-gray-600 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" /> Ngày đi:{" "}
+                      {formatDate(booking.bookingDate)}
                     </div>
-
-                    <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
-                      <Clock className="w-4 h-4" />
-                      <span>{days} </span>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" /> Thời gian:{" "}
+                      {getDays(booking)} ngày
                     </div>
-
-                    <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
-                      <Users className="w-4 h-4" />
-                      <span>{booking.people} người</span>
-                    </div>
-
-                    <div className="mt-1 text-sm text-gray-600">
-                      Khách đặt: {booking.name || booking.user?.name || "—"}
-                    </div>
-                    <div className="mt-1 text-sm text-gray-600">
-                      Ghi chú: {booking.note || "(Không có)"}
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" /> Số người:{" "}
+                      {booking.people}
                     </div>
                   </div>
-
-                  <div className="rounded-md bg-white/70 p-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Giá / người</span>
-                      <span className="font-semibold">{currencyVN(pricePer)}</span>
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Tổng tiền</span>
+                      <span className="text-red-600">
+                        {currencyVN(total)}
+                      </span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-base">
-                      <span className="font-semibold">Tổng cộng</span>
-                      <span className="font-extrabold text-indigo-700">{currencyVN(total)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <ShieldCheck className="w-4 h-4" />
-                    Thanh toán an toàn – dữ liệu được mã hóa.
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Khu vực thanh toán */}
+            {/* Thanh toán */}
             <div className="lg:col-span-2">
               <Card>
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-bold mb-4">Phương thức thanh toán</h2>
-
-                  <Tabs
-                    defaultValue="card"
-                    value={activeMethod}
-                    onValueChange={(v) => setActiveMethod(v as any)}
-                  >
-                    <TabsList className="grid grid-cols-3 w-full">
-                      <TabsTrigger value="card" className="flex items-center gap-2">
-                        <CreditCard className="w-4 h-4" /> Thẻ
-                      </TabsTrigger>
-                      <TabsTrigger value="bank" className="flex items-center gap-2">
-                        <Banknote className="w-4 h-4" /> Chuyển khoản
-                      </TabsTrigger>
-                      <TabsTrigger value="ewallet" className="flex items-center gap-2">
-                        <Smartphone className="w-4 h-4" /> Ví điện tử
-                      </TabsTrigger>
-                    </TabsList>
-
-                    {/* THẺ */}
-                    <TabsContent value="card" className="mt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Tên chủ thẻ</Label>
-                          <Input
-                            placeholder="VD: NGUYEN VAN A"
-                            value={cardName}
-                            onChange={(e) => setCardName(e.target.value.toUpperCase())}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Số thẻ</Label>
-                          <Input
-                            inputMode="numeric"
-                            maxLength={19}
-                            placeholder="XXXX XXXX XXXX XXXX"
-                            value={cardNumber}
-                            onChange={(e) =>
-                              setCardNumber(
-                                e.target.value
-                                  .replace(/[^\d]/g, "")
-                                  .replace(/(.{4})/g, "$1 ")
-                                  .trim()
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Hết hạn (MM/YY)</Label>
-                          <Input
-                            placeholder="MM/YY"
-                            maxLength={5}
-                            value={cardExp}
-                            onChange={(e) =>
-                              setCardExp(
-                                e.target.value
-                                  .replace(/[^\d]/g, "")
-                                  .replace(/(\d{2})(\d{1,2})?/, (_, m, y) => (y ? `${m}/${y}` : m))
-                                  .slice(0, 5)
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>CVV</Label>
-                          <Input
-                            inputMode="numeric"
-                            maxLength={4}
-                            placeholder="***"
-                            value={cardCvv}
-                            onChange={(e) => setCardCvv(e.target.value.replace(/[^\d]/g, "").slice(0, 4))}
-                          />
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    {/* CHUYỂN KHOẢN */}
-                    <TabsContent value="bank" className="mt-6">
-                      <div className="rounded-md border p-4 bg-muted/40 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm text-gray-500">Ngân hàng</div>
-                            <div className="font-semibold">Vietcombank – CN Đà Nẵng</div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copy("Vietcombank - CN Da Nang", "Tên ngân hàng")}
-                          >
-                            <Copy className="w-4 h-4 mr-1" /> Copy
-                          </Button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm text-gray-500">Số tài khoản</div>
-                            <div className="font-semibold text-lg">0123456789</div>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={() => copy("0123456789", "Số tài khoản")}>
-                            <Copy className="w-4 h-4 mr-1" /> Copy
-                          </Button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm text-gray-500">Chủ tài khoản</div>
-                            <div className="font-semibold">CONG TY DU LICH DANANG</div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copy("CONG TY DU LICH DANANG", "Chủ tài khoản")}
-                          >
-                            <Copy className="w-4 h-4 mr-1" /> Copy
-                          </Button>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm text-gray-500">Nội dung chuyển khoản</div>
-                            <div className="font-semibold">
-                              TT {booking._id.slice(-6)} {booking.name?.toUpperCase() || "GUEST"}
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              copy(
-                                `TT ${booking._id.slice(-6)} ${booking.name?.toUpperCase() || "GUEST"}`,
-                                "Nội dung chuyển khoản"
-                              )
-                            }
-                          >
-                            <Copy className="w-4 h-4 mr-1" /> Copy
-                          </Button>
-                        </div>
-
-                        <div className="text-sm text-gray-600">
-                          Vui lòng chuyển đúng số tiền: <b>{currencyVN(total)}</b>. Sau khi nhận được, hệ thống sẽ
-                          đối soát và xác nhận.
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    {/* VÍ ĐIỆN TỬ */}
-                    <TabsContent value="ewallet" className="mt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Card>
-                          <CardContent className="p-4">
-                            <div className="font-semibold mb-2">MoMo</div>
-                            <div className="text-sm text-gray-600">
-                              SĐT nhận: <b>0909 000 000</b>
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              Ghi chú: <b>TT {booking._id.slice(-6)}</b>
-                            </div>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="p-4">
-                            <div className="font-semibold mb-2">ZaloPay</div>
-                            <div className="text-sm text-gray-600">
-                              SĐT nhận: <b>0911 111 111</b>
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              Ghi chú: <b>TT {booking._id.slice(-6)}</b>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-
-                  <div className="mt-6 flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
-                      Bạn đang thanh toán cho đơn <b>#{booking._id.slice(-6)}</b>
+                <CardContent className="p-8">
+                  <h2 className="text-2xl font-bold text-center mb-8">
+                    Phương thức thanh toán
+                  </h2>
+                  {!canPay ? (
+                    <div className="text-center py-16 text-gray-600">
+                      <ShieldCheck className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg">
+                        Đơn hàng chưa ở trạng thái cho phép thanh toán
+                        online.
+                      </p>
                     </div>
-                    <Button
-                      onClick={handlePay}
-                      disabled={!canPay}
-                      className={`px-6 ${
-                        canPay
-                          ? "bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700"
-                          : "bg-gray-300 text-gray-600 cursor-not-allowed hover:bg-gray-300"
-                      }`}
-                      title={canPay ? "Tiến hành thanh toán" : "Đơn chưa xác nhận – không thể thanh toán"}
-                    >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Thanh toán {currencyVN(total)}
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="text-center space-y-10">
+                      {/* MoMo */}
+                      <div className="space-y-5">
+                        <img
+                          src="https://cdn.mservice.com.vn/img/momo-logo.png"
+                          alt="MoMo"
+                          className="h-16 mx-auto"
+                        />
+                        <p className="text-lg font-medium">
+                          Thanh toán qua{" "}
+                          <strong className="text-pink-600">
+                            MoMo (Thẻ ATM)
+                          </strong>
+                        </p>
+                        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl max-w-md mx-auto text-left text-sm font-medium">
+                          <p>
+                            • Số thẻ:{" "}
+                            <code className="bg-white px-3 py-1 rounded">
+                              9704 0000 0000 0018
+                            </code>
+                          </p>
+                          <p>
+                            • Ngày hết hạn:{" "}
+                            <code className="bg-white px-3 py-1 rounded">
+                              03/07
+                            </code>
+                          </p>
+                          <p>
+                            • OTP:{" "}
+                            <span className="text-green-600 font-bold text-lg">
+                              OTP
+                            </span>{" "}
+                            → Thành công ngay!
+                          </p>
+                        </div>
+                        <Button
+                          size="lg"
+                          onClick={handleMomoPayment}
+                          disabled={paying}
+                          className="bg-pink-500 hover:bg-pink-600 text-white text-xl px-20 py-8 font-bold shadow-xl"
+                        >
+                          {paying
+                            ? "Đang chuyển hướng..."
+                            : `Thanh toán ${currencyVN(
+                                total
+                              )} qua MoMo`}
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                        <span className="h-px w-16 bg-gray-300" />
+                        <span>Hoặc</span>
+                        <span className="h-px w-16 bg-gray-300" />
+                      </div>
+
+                      {/* VNPAY */}
+                      <div className="space-y-5">
+                        <img
+                          src="https://vnpay.vn/assets/img/vnpay-logo.png"
+                          alt="VNPAY"
+                          className="h-10 mx-auto"
+                        />
+                        <p className="text-lg font-medium">
+                          Thanh toán qua{" "}
+                          <strong className="text-red-600">
+                            VNPAY (ATM / Thẻ quốc tế / QR)
+                          </strong>
+                        </p>
+                        <Button
+                          size="lg"
+                          onClick={handleVnpayPayment}
+                          disabled={paying}
+                          className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white text-xl px-20 py-8 font-bold shadow-xl"
+                        >
+                          {paying
+                            ? "Đang chuyển hướng..."
+                            : `Thanh toán ${currencyVN(
+                                total
+                              )} qua VNPAY`}
+                        </Button>
+                      </div>
+
+                      <p className="mt-4 text-sm text-gray-500">
+                        Mã đơn (Booking):{" "}
+                        <strong>
+                          #{booking._id.slice(-6).toUpperCase()}
+                        </strong>
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

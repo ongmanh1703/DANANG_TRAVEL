@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/components/ui/use-toast';
 
+// ====== THÊM LOGO WEB (SỬA PATH CHO ĐÚNG DỰ ÁN CỦA BẠN) ======
+import logo from '@/assets/logo.png';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface Review {
@@ -39,11 +42,14 @@ const ReviewsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Helper lấy token + redirect nếu hết hạn
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     if (!token) {
-      toast({ title: 'Chưa đăng nhập', description: 'Vui lòng đăng nhập lại', variant: 'destructive' });
+      toast({
+        title: 'Chưa đăng nhập',
+        description: 'Vui lòng đăng nhập lại',
+        variant: 'destructive',
+      });
       window.location.href = '/login';
       return null;
     }
@@ -65,8 +71,12 @@ const ReviewsManagement = () => {
 
     if (res.status === 401) {
       localStorage.removeItem('token');
-      toast({ title: 'Phiên hết hạn', description: 'Đăng nhập lại', variant: 'destructive' });
-      setTimeout(() => window.location.href = '/login', 1500);
+      toast({
+        title: 'Phiên hết hạn',
+        description: 'Đăng nhập lại',
+        variant: 'destructive',
+      });
+      setTimeout(() => (window.location.href = '/login'), 1500);
       throw new Error('Unauthorized');
     }
 
@@ -112,7 +122,7 @@ const ReviewsManagement = () => {
       });
       if (!res.ok) throw new Error((await res.json()).message || 'Gửi phản hồi thất bại');
       const { reply } = await res.json();
-      setReviews(prev => prev.map(r => r._id === reviewId ? { ...r, reply } : r));
+      setReviews(prev => prev.map(r => (r._id === reviewId ? { ...r, reply } : r)));
       toast({ title: 'Đã gửi phản hồi!' });
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
@@ -124,7 +134,7 @@ const ReviewsManagement = () => {
     try {
       const res = await apiCall(`/api/reviews/${reviewId}/reply`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Xóa phản hồi thất bại');
-      setReviews(prev => prev.map(r => r._id === reviewId ? { ...r, reply: undefined } : r));
+      setReviews(prev => prev.map(r => (r._id === reviewId ? { ...r, reply: undefined } : r)));
       toast({ title: 'Đã xóa phản hồi' });
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
@@ -137,7 +147,12 @@ const ReviewsManagement = () => {
 
   const renderStars = (rating: number) =>
     Array.from({ length: 5 }, (_, i) => (
-      <Star key={i} className={`w-5 h-5 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+      <Star
+        key={i}
+        className={`w-5 h-5 ${
+          i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+        }`}
+      />
     ));
 
   const formatDate = (date: string) =>
@@ -178,7 +193,7 @@ const ReviewsManagement = () => {
         </Card>
       ) : (
         <div className="grid gap-6">
-          {reviews.map((review) => (
+          {reviews.map(review => (
             <Card key={review._id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row justify-between gap-6">
@@ -188,7 +203,9 @@ const ReviewsManagement = () => {
                       <span className="font-semibold text-lg">
                         {review.user?.name || 'Khách vãng lai'}
                       </span>
-                      <Badge variant={review.targetType === 'Tour' ? 'default' : 'secondary'}>
+                      <Badge
+                        variant={review.targetType === 'Tour' ? 'default' : 'secondary'}
+                      >
                         {review.targetType}
                       </Badge>
                       <Badge variant="outline" className="max-w-xs truncate">
@@ -204,25 +221,33 @@ const ReviewsManagement = () => {
                       <span className="font-bold text-lg">{review.rating}.0</span>
                     </div>
 
-                    <p className="text-muted-foreground leading-relaxed">{review.content}</p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      {review.content}
+                    </p>
 
-                    {/* PHẢN HỒI TỪ ADMIN */}
+                    {/* PHẢN HỒI - HIỂN THỊ ĐÀ NẴNG TRAVEL + LOGO */}
                     {review.reply ? (
                       <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
-                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
-                                A
-                              </div>
+                              <img
+                                src={logo}
+                                alt="Đà Nẵng Travel"
+                                className="w-9 h-9 rounded-full object-cover border"
+                              />
                               <div>
-                                <span className="font-bold text-emerald-800">Quản trị viên</span>
+                                <span className="font-bold text-emerald-800">
+                                  Đà Nẵng Travel
+                                </span>
                                 <span className="text-xs text-gray-600 ml-3">
                                   {formatDate(review.reply.repliedAt)}
                                 </span>
                               </div>
                             </div>
-                            <p className="text-gray-800 pl-12 leading-relaxed">{review.reply.content}</p>
+                            <p className="text-gray-800 pl-12 leading-relaxed">
+                              {review.reply.content}
+                            </p>
                           </div>
                           <Button
                             size="sm"
@@ -237,7 +262,7 @@ const ReviewsManagement = () => {
                     ) : (
                       <div className="mt-6 ml-12">
                         <form
-                          onSubmit={(e) => {
+                          onSubmit={e => {
                             e.preventDefault();
                             const input = e.currentTarget.reply as HTMLInputElement;
                             const content = input.value.trim();
@@ -251,13 +276,18 @@ const ReviewsManagement = () => {
                           <input
                             name="reply"
                             type="text"
-                            placeholder="Nhập phản hồi từ Admin..."
+                            placeholder="Nhập phản hồi từ Đà Nẵng Travel..."
                             className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-emerald-500 text-sm"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') e.currentTarget.form?.requestSubmit();
+                            onKeyDown={e => {
+                              if (e.key === 'Enter')
+                                e.currentTarget.form?.requestSubmit();
                             }}
                           />
-                          <Button type="submit" size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
                             <Send className="w-4 h-4" />
                           </Button>
                         </form>
@@ -284,7 +314,7 @@ const ReviewsManagement = () => {
       )}
 
       {/* Dialog xác nhận xóa */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <AlertDialog open={!!deleteId} onOpenChange={open => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Xóa đánh giá?</AlertDialogTitle>
@@ -294,7 +324,10 @@ const ReviewsManagement = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground"
+            >
               Xóa vĩnh viễn
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -31,7 +31,10 @@ const tourRoutes = require('./routes/tours');
 const bookingRoutes = require('./routes/bookings');
 const postRoutes = require('./routes/posts');
 const userRoutes = require('./routes/user');
-const reviewRoutes = require('./routesreview');
+const reviewRoutes = require('./routes/review');
+
+// ✅ THÊM DÒNG NÀY
+const paymentRoutes = require('./routes/payments');
 
 // Connect to MongoDB
 mongoose
@@ -50,7 +53,8 @@ app.use('/api/posts', postRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/users', userRoutes);
 
-
+// ✅ THÊM DÒNG NÀY
+app.use('/api/payments', paymentRoutes);
 
 // Root route
 app.get('/', (req, res) => res.send('Travel Backend API'));
@@ -64,4 +68,3 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-

@@ -1,4 +1,5 @@
-import PostManager from '@/components/admin/PostManager';
+import StaffPostManager from "@/components/staff/StaffPostManager";
+
 export default function StaffDestinationsPage() {
-  return <PostManager category="kham_pha" />;
+  return <StaffPostManager category="kham_pha" />;
 }

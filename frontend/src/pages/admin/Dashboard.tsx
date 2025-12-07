@@ -67,6 +67,9 @@ export default function Dashboard() {
     return res.json();
   };
 
+  // CHỈ TÍNH ĐƠN ĐÃ THANH TOÁN (paid hoặc paid_pending)
+  const isPaid = (status: string) => status === "paid" || status === "paid_pending";
+
   useEffect(() => {
     const fetchAllData = async () => {
       if (!token) {
@@ -77,7 +80,6 @@ export default function Dashboard() {
       try {
         setLoading(true);
 
-        // 1. Lấy tất cả dữ liệu cần thiết song song
         const [users, tours, bookings, reviews] = await Promise.all([
           fetchWithAuth("/users"),
           fetchWithAuth("/tours"),
@@ -85,22 +87,21 @@ export default function Dashboard() {
           fetchWithAuth("/reviews/all"),
         ]);
 
-        // Thống kê cơ bản
+        // Thống kê cơ bản (giữ nguyên như cũ)
         const totalUsers = users.users?.length || 0;
         const totalTours = tours.length || 0;
         const totalBookings = bookings.length || 0;
         const totalReviews = reviews.length || 0;
 
-        // Doanh thu & người dùng theo tháng
         const now = new Date();
         const thisMonthStart = startOfMonth(now);
         const lastMonthStart = startOfMonth(subMonths(now, 1));
 
+        // DOANH THU THỰC TẾ – CHỈ TÍNH ĐƠN ĐÃ THANH TOÁN
         const revenueThisMonth = bookings
           .filter(
             (b: any) =>
-              b.status === "confirmed" &&
-              new Date(b.bookingDate) >= thisMonthStart
+              isPaid(b.status) && new Date(b.bookingDate) >= thisMonthStart
           )
           .reduce(
             (sum: number, b: any) => sum + (b.tour?.price || 0) * b.people,
@@ -110,7 +111,7 @@ export default function Dashboard() {
         const revenueLastMonth = bookings
           .filter(
             (b: any) =>
-              b.status === "confirmed" &&
+              isPaid(b.status) &&
               new Date(b.bookingDate) >= lastMonthStart &&
               new Date(b.bookingDate) < thisMonthStart
           )
@@ -141,7 +142,7 @@ export default function Dashboard() {
           newUsersLastMonth,
         });
 
-        // Biểu đồ doanh thu 7 tháng gần nhất
+        // Biểu đồ doanh thu 7 tháng – CHỈ TÍNH ĐƠN ĐÃ THANH TOÁN
         const last7Months = Array.from({ length: 7 }, (_, i) => {
           const date = subMonths(now, 6 - i);
           return {
@@ -156,7 +157,7 @@ export default function Dashboard() {
           revenue: bookings
             .filter(
               (b: any) =>
-                b.status === "confirmed" &&
+                isPaid(b.status) &&
                 new Date(b.bookingDate) >= start &&
                 new Date(b.bookingDate) < end
             )
@@ -167,7 +168,7 @@ export default function Dashboard() {
         }));
         setMonthlyRevenue(revenueData);
 
-        // Tăng trưởng người dùng
+        // Các phần còn lại giữ nguyên 100% như file gốc
         const userGrowthData = last7Months.map(({ month, start, end }) => ({
           month,
           users:
@@ -178,7 +179,6 @@ export default function Dashboard() {
         }));
         setMonthlyUsers(userGrowthData);
 
-        // Phân bố tour (dựa trên category hoặc departure)
         const categoryCount: Record<string, number> = {};
         tours.forEach((t: any) => {
           const key = t.category || t.departure || "Khác";
@@ -198,7 +198,6 @@ export default function Dashboard() {
         }
         setTourDistribution(distribution);
 
-        // Hoạt động gần đây (10 booking mới nhất)
         const recent = bookings
           .sort(
             (a: any, b: any) =>
@@ -302,7 +301,7 @@ export default function Dashboard() {
               <div className="text-2xl font-bold">{stat.value}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-green-500 font-semibold">
-                  ↑ {stat.trend}
+                  Up {stat.trend}
                 </span>{" "}
                 hoạt động gần đây
               </p>

@@ -21,7 +21,9 @@ import DishDetail from "./pages/DishDetail";
 import NewsDetail from "./pages/NewsDetail";
 import MyBookings from "./pages/MyBookings";
 import Payment from "./pages/Payment";
-import ProfilePage from "./pages/Profile";   // ĐÃ THÊM
+import ProfilePage from "./pages/Profile"; 
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailed from "./pages/PaymentFailed";  // ĐÃ THÊM
 
 // Layout
 import { AdminLayout } from "../layouts/AdminLayout";
@@ -39,12 +41,12 @@ import AdminReviews from "./pages/admin/Reviews";
 
 // Staff Pages
 import StaffDashboard from "./pages/staff/Dashboard";
-import StaffTours from "./pages/staff/Tours";
+import StaffTours from "./pages/staff/StaffTours";
 import StaffCuisine from "./pages/staff/Cuisine";
 import StaffDestinations from "./pages/staff/Destinations";
 import StaffNews from "./pages/staff/News";
-import StaffBookings from "./pages/staff/Bookings";
-import StaffReviews from "./pages/staff/Reviews";
+import StaffBookings from "./pages/staff/StaffBookings";
+import StaffReviews from "./pages/staff/StaffReviews";
 
 import ScrollToTop from "./components/ScrollToTop";
 
@@ -121,6 +123,8 @@ const App = () => (
           <Route path="/staff/bookings" element={<StaffLayout><StaffBookings /></StaffLayout>} />
           <Route path="/staff/reviews" element={<StaffLayout><StaffReviews /></StaffLayout>} />
 
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/payment-failed" element={<PaymentFailed />} />
           {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>

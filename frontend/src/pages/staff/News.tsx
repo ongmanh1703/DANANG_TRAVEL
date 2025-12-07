@@ -1,4 +1,5 @@
-import PostManager from '@/components/admin/PostManager';
+import StaffPostManager from "@/components/staff/StaffPostManager";
+
 export default function StaffNewsPage() {
-  return <PostManager category="tin_tuc" />;
+  return <StaffPostManager category="tin_tuc" />;
 }

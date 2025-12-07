@@ -261,4 +261,4 @@ const Cuisine = () => {
   );
 };
 
-export default Cuisine;
+export default Cuisine; 

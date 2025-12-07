@@ -13,24 +13,16 @@ import { vi } from "date-fns/locale";
 
 const BACKEND_URL = "http://localhost:5000";
 
+// 🔹 LOGO WEB
+import logo from "@/assets/logo.png";
+
 /**
- * HÀM QUAN TRỌNG NHẤT – XỬ LÝ ẢNH AN TOÀN 100%
- * → Không bao giờ gây lỗi 431 dù ảnh là base64, đường dẫn, hay http
+ * Xử lý ảnh an toàn
  */
 const getImageUrl = (imagePath?: string): string => {
   if (!imagePath) return "/placeholder.svg";
-
-  // Trường hợp 1: Là base64 (data:image/...) → trả về luôn (dùng cho preview)
-  if (imagePath.startsWith("data:")) {
-    return imagePath;
-  }
-
-  // Trường hợp 2: Là link đầy đủ → dùng luôn
-  if (imagePath.startsWith("http")) {
-    return imagePath;
-  }
-
-  // Trường hợp 3: Là đường dẫn tương đối từ server → ghép đúng
+  if (imagePath.startsWith("data:")) return imagePath;
+  if (imagePath.startsWith("http")) return imagePath;
   const cleanPath = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
   return `${BACKEND_URL}${cleanPath}`;
 };
@@ -188,7 +180,9 @@ const NewsDetail = () => {
         return {
           ...prev,
           reviews: exists
-            ? prev.reviews.map((r) => (r._id === updatedReview._id ? updatedReview : r))
+            ? prev.reviews.map((r) =>
+                r._id === updatedReview._id ? updatedReview : r
+              )
             : [updatedReview, ...prev.reviews],
           ratingAverage,
           ratingCount,
@@ -223,12 +217,15 @@ const NewsDetail = () => {
 
       setUserReview(null);
       setNewReview({ rating: 0, content: "" });
-      setPost((prev) => prev && {
-        ...prev,
-        reviews: prev.reviews.filter((r) => r._id !== userReview._id),
-        ratingAverage: result.post.ratingAverage,
-        ratingCount: result.post.ratingCount,
-      });
+      setPost(
+        (prev) =>
+          prev && {
+            ...prev,
+            reviews: prev.reviews.filter((r) => r._id !== userReview._id),
+            ratingAverage: result.post.ratingAverage,
+            ratingCount: result.post.ratingCount,
+          }
+      );
 
       toast({ title: "Đã xóa", description: "Đánh giá đã được xóa" });
     } catch (err: any) {
@@ -252,14 +249,26 @@ const NewsDetail = () => {
     );
   }
 
-  const ReviewCard = ({ review, isUser }: { review: Review; isUser: boolean }) => {
+  const ReviewCard = ({
+    review,
+    isUser,
+  }: {
+    review: Review;
+    isUser: boolean;
+  }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const displayName = review.user?.name || "Khách vãng lai";
     const initials = displayName.charAt(0).toUpperCase();
     const avatarUrl = getImageUrl(review.user?.avatar);
 
     return (
-      <div className={`p-6 rounded-2xl border ${isUser ? "bg-indigo-50/80 border-indigo-300" : "bg-white border-gray-200"} shadow-sm hover:shadow-md transition`}>
+      <div
+        className={`p-6 rounded-2xl border ${
+          isUser
+            ? "bg-indigo-50/80 border-indigo-300"
+            : "bg-white border-gray-200"
+        } shadow-sm hover:shadow-md transition`}
+      >
         <div className="flex gap-5">
           {/* Avatar người dùng */}
           <div className="flex-shrink-0">
@@ -280,23 +289,39 @@ const NewsDetail = () => {
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`font-bold text-lg ${isUser ? "text-indigo-700" : "text-gray-900"}`}>
+                  <span
+                    className={`font-bold text-lg ${
+                      isUser ? "text-indigo-700" : "text-gray-900"
+                    }`}
+                  >
                     {displayName}
                   </span>
-                  {isUser && <Badge variant="secondary" className="text-xs">Bạn</Badge>}
+                  {isUser && (
+                    <Badge variant="secondary" className="text-xs">
+                      Bạn
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
-                        className={`w-4 h-4 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                        className={`w-4 h-4 ${
+                          i < review.rating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300"
+                        }`}
                       />
                     ))}
                   </div>
-                  <span className="font-medium text-indigo-600">{timeAgo(review.createdAt)}</span>
+                  <span className="font-medium text-indigo-600">
+                    {timeAgo(review.createdAt)}
+                  </span>
                   <span className="text-gray-400">•</span>
-                  <span className="text-gray-500">{formatDate(review.createdAt)}</span>
+                  <span className="text-gray-500">
+                    {formatDate(review.createdAt)}
+                  </span>
                 </div>
               </div>
 
@@ -308,20 +333,30 @@ const NewsDetail = () => {
                     onClick={() => setMenuOpen(!menuOpen)}
                     className="hover:bg-indigo-100 rounded-full"
                   >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
                       <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                     </svg>
                   </Button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border z-20">
                       <button
-                        onClick={() => { setIsEditing(true); setMenuOpen(false); }}
+                        onClick={() => {
+                          setIsEditing(true);
+                          setMenuOpen(false);
+                        }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100"
                       >
                         Chỉnh sửa
                       </button>
                       <button
-                        onClick={() => { handleDeleteReview(); setMenuOpen(false); }}
+                        onClick={() => {
+                          handleDeleteReview();
+                          setMenuOpen(false);
+                        }}
                         className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
                       >
                         Xóa
@@ -332,31 +367,29 @@ const NewsDetail = () => {
               )}
             </div>
 
-            <p className="mt-4 text-gray-700 leading-relaxed">{review.content}</p>
+            <p className="mt-4 text-gray-700 leading-relaxed">
+              {review.content}
+            </p>
 
-            {/* Reply từ Admin */}
+            {/* Reply từ Đà Nẵng Travel */}
             {review.reply && (
               <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                 <div className="flex gap-4">
                   <div className="flex-shrink-0">
-                    {review.reply.admin?.avatar ? (
-                      <img
-                        src={getImageUrl(review.reply.admin.avatar)}
-                        alt={review.reply.admin.name}
-                        className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-lg">
-                        A
-                      </div>
-                    )}
+                    <img
+                      src={logo}
+                      alt="Đà Nẵng Travel"
+                      className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-lg"
+                    />
                   </div>
                   <div className="flex-1">
-                    <div className="font-bold text-emerald-800 mb-1 flex items-center gap-2">
-                      {review.reply.admin?.name || "Quản trị viên"}
-                      <Badge variant="outline" className="text-xs">Admin</Badge>
+                    {/* ⬇️ Chỉ còn 1 lần Đà Nẵng Travel */}
+                    <div className="font-bold text-emerald-800 mb-1">
+                      Đà Nẵng Travel
                     </div>
-                    <p className="text-gray-800 leading-relaxed">{review.reply.content}</p>
+                    <p className="text-gray-800 leading-relaxed">
+                      {review.reply.content}
+                    </p>
                     <p className="text-xs text-gray-500 mt-2">
                       {timeAgo(review.reply.repliedAt)}
                     </p>
@@ -384,7 +417,11 @@ const NewsDetail = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex items-end">
           <div className="container mx-auto px-4 py-10 text-white">
             <Badge className="bg-gradient-to-r from-pink-500 to-orange-500 mb-4">
-              {post.category === "am_thuc" ? "Ẩm thực" : post.category === "tin_tuc" ? "Tin tức" : "Khám phá"}
+              {post.category === "am_thuc"
+                ? "Ẩm thực"
+                : post.category === "tin_tuc"
+                ? "Tin tức"
+                : "Khám phá"}
             </Badge>
             <h1 className="text-4xl md:text-6xl font-extrabold max-w-5xl leading-tight">
               {post.title}
@@ -397,23 +434,37 @@ const NewsDetail = () => {
         <div className="container mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-10">
           <div className="lg:col-span-2 space-y-10">
             <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600 pb-5 border-b">
-              <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /> {formatDate(post.createdAt)}</div>
-              <div className="flex items-center gap-2"><Eye className="w-4 h-4" /> {post.views || 0} lượt xem</div>
-              <div className="flex items-center gap-2"><MessageCircle className="w-4 h-4" /> {post.reviews.length} đánh giá</div>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> {formatDate(post.createdAt)}
+              </div>
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4" /> {post.views || 0} lượt xem
+              </div>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-4 h-4" /> {post.reviews.length} đánh
+                giá
+              </div>
               {post.ratingAverage > 0 && (
                 <div className="flex items-center gap-2">
                   <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold">{post.ratingAverage.toFixed(1)}</span>
+                  <span className="font-semibold">
+                    {post.ratingAverage.toFixed(1)}
+                  </span>
                 </div>
               )}
             </div>
 
             <article
-              className="prose prose-lg max-w-none text-gray-800 leading-relaxed"
+              className="prose prose-lg max-w-none text-gray-800 leading-relaxed text-justify hyphen-auto break-words [&_*]:text-justify"
+              style={{ textAlign: "justify" }}
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
 
-            <Button variant="outline" onClick={() => navigate(-1)} className="mb-10">
+            <Button
+              variant="outline"
+              onClick={() => navigate(-1)}
+              className="mb-10"
+            >
               <ArrowLeft className="w-4 h-4 mr-2" /> Quay lại
             </Button>
 
@@ -425,16 +476,23 @@ const NewsDetail = () => {
               </h2>
 
               {(!userReview || isEditing) && (
-                <form onSubmit={handleReviewSubmit} className="mb-10 pb-10 border-b-2">
+                <form
+                  onSubmit={handleReviewSubmit}
+                  className="mb-10 pb-10 border-b-2"
+                >
                   <div className="mb-6">
                     <p className="font-medium mb-3">Chọn số sao</p>
                     <div className="flex gap-2">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <Star
                           key={star}
-                          onClick={() => setNewReview({ ...newReview, rating: star })}
+                          onClick={() =>
+                            setNewReview({ ...newReview, rating: star })
+                          }
                           className={`w-10 h-10 cursor-pointer transition hover:scale-110 ${
-                            star <= newReview.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                            star <= newReview.rating
+                              ? "text-yellow-400 fill-yellow-400"
+                              : "text-gray-300"
                           }`}
                         />
                       ))}
@@ -445,17 +503,34 @@ const NewsDetail = () => {
                     className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:outline-none resize-none"
                     rows={5}
                     value={newReview.content}
-                    onChange={(e) => setNewReview({ ...newReview, content: e.target.value })}
+                    onChange={(e) =>
+                      setNewReview({ ...newReview, content: e.target.value })
+                    }
                   />
                   <div className="flex gap-4 mt-6">
-                    <Button type="submit" disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                      {submitting ? "Đang gửi..." : isEditing ? "Cập nhật" : "Gửi đánh giá"}
+                    <Button
+                      type="submit"
+                      disabled={submitting}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {submitting
+                        ? "Đang gửi..."
+                        : isEditing
+                        ? "Cập nhật"
+                        : "Gửi đánh giá"}
                     </Button>
-                    {isEditing && (
-                      <Button type="button" variant="outline" onClick={() => {
-                        setIsEditing(false);
-                        setNewReview({ rating: userReview!.rating, content: userReview!.content });
-                      }}>
+                    {isEditing && userReview && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditing(false);
+                          setNewReview({
+                            rating: userReview.rating,
+                            content: userReview.content,
+                          });
+                        }}
+                      >
                         Hủy
                       </Button>
                     )}
@@ -470,7 +545,11 @@ const NewsDetail = () => {
                   </div>
                 ) : (
                   post.reviews.map((review) => (
-                    <ReviewCard key={review._id} review={review} isUser={userReview?._id === review._id} />
+                    <ReviewCard
+                      key={review._id}
+                      review={review}
+                      isUser={userReview?._id === review._id}
+                    />
                   ))
                 )}
               </div>
@@ -501,7 +580,9 @@ const NewsDetail = () => {
                         <h4 className="font-medium line-clamp-3 group-hover:text-indigo-600">
                           {item.title}
                         </h4>
-                        <p className="text-xs text-gray-500 mt-2">{formatDate(item.createdAt)}</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {formatDate(item.createdAt)}
+                        </p>
                       </div>
                     </div>
                   ))}

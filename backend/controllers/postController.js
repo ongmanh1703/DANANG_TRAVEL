@@ -24,7 +24,7 @@ exports.getAllPosts = async (req, res) => {
   }
 };
 
-// LẤY CHI TIẾT 1 BÀI – ĐÃ SỬA HOÀN CHỈNH (avatar người dùng + admin reply đều hiện)
+// LẤY CHI TIẾT 1 BÀI
 exports.getPostById = async (req, res) => {
   try {
     const postId = req.params.id;
@@ -38,8 +38,8 @@ exports.getPostById = async (req, res) => {
         path: 'reviews',
         options: { sort: { createdAt: -1 } },
         populate: [
-          { path: 'user', select: 'name avatar' },           // Người đánh giá có avatar
-          { path: 'reply.admin', select: 'name avatar' }     // Admin trả lời cũng có avatar
+          { path: 'user', select: 'name avatar' },
+          { path: 'reply.admin', select: 'name avatar' }
         ]
       });
 
@@ -47,7 +47,7 @@ exports.getPostById = async (req, res) => {
       return res.status(404).json({ message: 'Bài viết không tồn tại hoặc đang nháp' });
     }
 
-    // Tăng lượt xem (giữ nguyên logic cũ của bạn)
+    // Tăng lượt xem
     post.views = (post.views || 0) + 1;
     await post.save();
 
@@ -78,11 +78,12 @@ exports.getFeaturedNews = async (req, res) => {
   }
 };
 
-// Tạo bài viết mới
+// Tạo bài viết mới (ADMIN + STAFF)
 exports.createPost = async (req, res) => {
   try {
-    if (!req.user || req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Chỉ admin mới được tạo bài viết' });
+    // ✅ Cho cả admin + staff
+    if (!req.user || !['admin', 'staff'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Chỉ admin hoặc staff mới được tạo bài viết' });
     }
 
     const {
@@ -148,11 +149,12 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// Cập nhật bài viết
+// Cập nhật bài viết (ADMIN + STAFF)
 exports.updatePost = async (req, res) => {
   try {
-    if (!req.user || req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Chỉ admin mới được sửa' });
+    // ✅ Cho cả admin + staff
+    if (!req.user || !['admin', 'staff'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Chỉ admin hoặc staff mới được sửa bài viết' });
     }
 
     const postId = req.params.id;
@@ -180,9 +182,11 @@ exports.updatePost = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng chọn loại tin tức' });
     }
     if (newCategory === 'kham_pha') {
-      if ((overview === undefined && !post.overview) ||
-          (history === undefined && !post.history) ||
-          (notes === undefined && !post.notes)) {
+      if (
+        (overview === undefined && !post.overview) ||
+        (history === undefined && !post.history) ||
+        (notes === undefined && !post.notes)
+      ) {
         return res.status(400).json({ message: 'Tổng quan, lịch sử và lưu ý không được để trống' });
       }
       if (!placeType && category) {
@@ -213,7 +217,10 @@ exports.updatePost = async (req, res) => {
       post.overview = null;
       post.history = null;
       post.notes = null;
-      post.isFeatured = isFeatured !== undefined ? (isFeatured === true || isFeatured === '1') : post.isFeatured;
+      post.isFeatured =
+        isFeatured !== undefined
+          ? (isFeatured === true || isFeatured === '1')
+          : post.isFeatured;
     } else if (newCategory === 'kham_pha') {
       post.overview = overview !== undefined ? overview.trim() : post.overview;
       post.history = history !== undefined ? history.trim() : post.history;
@@ -240,7 +247,7 @@ exports.updatePost = async (req, res) => {
   }
 };
 
-// Xóa bài viết
+// Xóa bài viết (CHỈ ADMIN)
 exports.deletePost = async (req, res) => {
   try {
     if (!req.user || req.user.role !== 'admin') {

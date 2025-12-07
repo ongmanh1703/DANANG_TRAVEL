@@ -1,3 +1,4 @@
+// controllers/tourController.js
 const Tour = require('../models/Tour');
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -16,16 +17,29 @@ exports.getAllTours = async (req, res) => {
 exports.createTour = async (req, res) => {
   try {
     const {
-      title, price, originalPrice, duration, groupSize,
-      highlights, departure, category, includes, status, description
+      title,
+      price,
+      originalPrice,
+      duration,
+      groupSize,
+      highlights,
+      departure,
+      category,
+      includes,
+      status,
+      description,
     } = req.body;
 
     if (!title || !price || !duration) {
-      return res.status(400).json({ message: 'Tiêu đề, giá và thời lượng là bắt buộc' });
+      return res
+        .status(400)
+        .json({ message: 'Tiêu đề, giá và thời lượng là bắt buộc' });
     }
 
-    const parsedHighlights = typeof highlights === 'string' ? JSON.parse(highlights) : highlights;
-    const parsedIncludes = typeof includes === 'string' ? JSON.parse(includes) : includes;
+    const parsedHighlights =
+      typeof highlights === 'string' ? JSON.parse(highlights) : highlights;
+    const parsedIncludes =
+      typeof includes === 'string' ? JSON.parse(includes) : includes;
 
     const image = req.file ? `/uploads/${req.file.filename}` : '';
 
@@ -36,12 +50,16 @@ exports.createTour = async (req, res) => {
       originalPrice: originalPrice ? Number(originalPrice) : undefined,
       duration,
       groupSize,
-      highlights: Array.isArray(parsedHighlights) ? parsedHighlights.filter(h => h.trim()) : [],
+      highlights: Array.isArray(parsedHighlights)
+        ? parsedHighlights.filter((h) => h.trim())
+        : [],
       departure,
       category,
-      includes: Array.isArray(parsedIncludes) ? parsedIncludes.filter(i => i.trim()) : [],
+      includes: Array.isArray(parsedIncludes)
+        ? parsedIncludes.filter((i) => i.trim())
+        : [],
       status: status || 'draft',
-      description: description || ''
+      description: description || '',
     });
 
     await tour.save();
@@ -56,8 +74,17 @@ exports.updateTour = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      title, price, originalPrice, duration, groupSize,
-      highlights, departure, category, includes, status, description
+      title,
+      price,
+      originalPrice,
+      duration,
+      groupSize,
+      highlights,
+      departure,
+      category,
+      includes,
+      status,
+      description,
     } = req.body;
 
     if (!mongoose.isValidObjectId(id)) {
@@ -65,14 +92,19 @@ exports.updateTour = async (req, res) => {
     }
 
     if (!title || !price || !duration) {
-      return res.status(400).json({ message: 'Tiêu đề, giá và thời lượng là bắt buộc' });
+      return res
+        .status(400)
+        .json({ message: 'Tiêu đề, giá và thời lượng là bắt buộc' });
     }
 
-    const parsedHighlights = typeof highlights === 'string' ? JSON.parse(highlights) : highlights;
-    const parsedIncludes = typeof includes === 'string' ? JSON.parse(includes) : includes;
+    const parsedHighlights =
+      typeof highlights === 'string' ? JSON.parse(highlights) : highlights;
+    const parsedIncludes =
+      typeof includes === 'string' ? JSON.parse(includes) : includes;
 
     const image = req.file ? `/uploads/${req.file.filename}` : req.body.image;
 
+    // Nếu có upload ảnh mới + có ảnh cũ → xóa ảnh cũ
     if (req.file && req.body.image) {
       const oldImagePath = path.join(__dirname, '..', req.body.image);
       fs.unlink(oldImagePath, (err) => {
@@ -89,12 +121,16 @@ exports.updateTour = async (req, res) => {
         originalPrice: originalPrice ? Number(originalPrice) : null,
         duration,
         groupSize,
-        highlights: Array.isArray(parsedHighlights) ? parsedHighlights.filter(h => h.trim()) : [],
+        highlights: Array.isArray(parsedHighlights)
+          ? parsedHighlights.filter((h) => h.trim())
+          : [],
         departure,
         category,
-        includes: Array.isArray(parsedIncludes) ? parsedIncludes.filter(i => i.trim()) : [],
+        includes: Array.isArray(parsedIncludes)
+          ? parsedIncludes.filter((i) => i.trim())
+          : [],
         status,
-        description: description || ''
+        description: description || '',
       },
       { new: true }
     );

@@ -1,3 +1,4 @@
+// src/pages/admin/Bookings.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Card,
@@ -10,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Check,
   X,
   Eye,
   RefreshCcw,
@@ -18,9 +18,10 @@ import {
   Calendar as CalendarIcon,
   User as UserIcon,
   Phone,
-  Users,
   Clock,
   Trash2,
+  CheckCircle2,
+  Mail, // icon gửi mail + icon hiện email
 } from "lucide-react";
 
 type Booking = {
@@ -33,25 +34,49 @@ type Booking = {
     days?: number;
     durationDays?: number;
   };
-  user?: { _id: string; name?: string };
+  user?: { _id: string; name?: string; email?: string };
   name: string;
   phone: string;
+  email?: string; // <- nếu backend có field email trong Booking
   bookingDate: string;
   people: number;
   note?: string;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "confirmed" | "paid_pending" | "paid" | "cancelled";
   createdAt: string;
   duration?: number;
 };
 
+const PAYMENT_TIMEOUT_MS = 10 * 60 * 1000;
+
 const statusConfig = {
-  pending: { label: "Đang chờ", color: "bg-yellow-100 text-yellow-800" },
-  confirmed: { label: "Đã xác nhận", color: "bg-green-100 text-green-700" },
+  confirmed: {
+    label: "CHỜ THANH TOÁN (10 phút)",
+    color: "bg-yellow-100 text-yellow-800",
+  },
+  paid_pending: {
+    label: "ĐÃ THANH TOÁN – CHỜ DUYỆT",
+    color: "bg-orange-100 text-orange-800",
+  },
+  paid: {
+    label: "ĐÃ THANH TOÁN – HOÀN TẤT",
+    color: "bg-emerald-100 text-emerald-800",
+  },
   cancelled: { label: "Đã hủy", color: "bg-red-100 text-red-700" },
 } as const;
 
+const getStatus = (status: string) => {
+  return (
+    statusConfig[status as keyof typeof statusConfig] || {
+      label: "Không rõ",
+      color: "bg-gray-100 text-gray-700",
+    }
+  );
+};
+
 const currencyVN = (n?: number) =>
-  typeof n === "number" ? new Intl.NumberFormat("vi-VN").format(n) + "đ" : "-";
+  typeof n === "number"
+    ? new Intl.NumberFormat("vi-VN").format(n) + "đ"
+    : "-";
 
 const fmtDate = (d?: string) => {
   if (!d) return "-";
@@ -65,7 +90,18 @@ const fmtDate = (d?: string) => {
 };
 
 const getDays = (b: Booking) =>
-  b.tour?.duration ?? b.tour?.days ?? b.tour?.durationDays ?? b.duration ?? 1;
+  b.tour?.duration ??
+  b.tour?.days ??
+  b.tour?.durationDays ??
+  b.duration ??
+  1;
+
+const isConfirmedExpired = (b: Booking) => {
+  if (b.status !== "confirmed") return false;
+  const created = new Date(b.createdAt).getTime();
+  const now = Date.now();
+  return now - created > PAYMENT_TIMEOUT_MS;
+};
 
 export default function Bookings() {
   const { toast } = useToast();
@@ -75,11 +111,12 @@ export default function Bookings() {
   const [statusFilter, setStatusFilter] = useState<"" | Booking["status"]>("");
   const [detail, setDetail] = useState<Booking | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const token = localStorage.getItem("token");
 
-  const fetchAll = async () => {
-    setLoading(true);
+  const fetchAll = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await fetch("http://localhost:5000/api/bookings/all", {
         headers: { Authorization: `Bearer ${token}` },
@@ -91,22 +128,35 @@ export default function Bookings() {
       const data = await res.json();
       setBookings(data);
     } catch (err: any) {
-      toast({ title: "Lỗi tải dữ liệu", description: err.message });
+      if (showLoading) {
+        toast({ title: "Lỗi tải dữ liệu", description: err.message });
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAll();
+    fetchAll(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      fetchAll(false);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return bookings.filter((b) => {
+      if (isConfirmedExpired(b)) return false;
+
       const matchesText =
         !q ||
-        [b.tour?.title, b.name, b.phone, b.note, b.user?.name]
+        [b.tour?.title, b.name, b.phone, b.note, b.user?.name, b.user?.email, b.email]
           .filter(Boolean)
           .some((t) => t!.toString().toLowerCase().includes(q));
       const matchesStatus = !statusFilter || b.status === statusFilter;
@@ -114,24 +164,112 @@ export default function Bookings() {
     });
   }, [bookings, query, statusFilter]);
 
-  const updateStatus = async (id: string, status: Booking["status"]) => {
+  // ===== GỬI HÓA ĐƠN TOUR QUA EMAIL (NHẤN TAY) =====
+  const sendInvoice = async (id: string) => {
+    if (
+      !confirm(
+        "Gửi hóa đơn tour qua email cho khách hàng?\n\nĐảm bảo đơn đã thanh toán (paid)."
+      )
+    )
+      return;
+
     setBusyId(id);
     try {
-      const res = await fetch(`http://localhost:5000/api/bookings/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error("Cập nhật thất bại");
-      setBookings((prev) =>
-        prev.map((b) => (b._id === id ? { ...b, status } : b))
+      const res = await fetch(
+        `http://localhost:5000/api/bookings/${id}/send-invoice`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
-      toast({ title: "Thành công", description: "Đã cập nhật trạng thái" });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Gửi hóa đơn thất bại");
+      }
+
+      toast({
+        title: "Đã gửi hóa đơn",
+        description: data.message || "Hóa đơn tour đã được gửi qua email.",
+      });
     } catch (err: any) {
-      toast({ title: "Lỗi", description: err.message });
+      toast({
+        title: "Lỗi gửi hóa đơn",
+        description: err.message || "Không thể gửi hóa đơn.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // ===== GỬI HÓA ĐƠN TỰ ĐỘNG KHI DUYỆT =====
+  const sendInvoiceAuto = async (id: string) => {
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/bookings/${id}/send-invoice`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Gửi hóa đơn thất bại");
+      }
+
+      toast({
+        title: "Đã gửi hóa đơn",
+        description:
+          data.message || "Hóa đơn tour đã được gửi qua email cho khách.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Lỗi gửi hóa đơn",
+        description: err.message || "Không thể gửi hóa đơn tự động.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // XÁC NHẬN THANH TOÁN (paid_pending → paid) + GỬI HÓA ĐƠN
+  const confirmPayment = async (id: string) => {
+    if (
+      !confirm(
+        "Xác nhận khách đã THANH TOÁN và chuyển trạng thái thành HOÀN TẤT?\n\nHệ thống sẽ tự động gửi hóa đơn tour qua email cho khách."
+      )
+    )
+      return;
+
+    setBusyId(id);
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/bookings/${id}/confirm-payment`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!res.ok) throw new Error("Cập nhật thất bại");
+
+      setBookings((prev) =>
+        prev.map((b) => (b._id === id ? { ...b, status: "paid" } : b))
+      );
+
+      toast({
+        title: "Thành công!",
+        description: "Đã xác nhận thanh toán hoàn tất.",
+      });
+
+      // gửi hóa đơn tự động
+      await sendInvoiceAuto(id);
+    } catch (err: any) {
+      toast({ title: "Lỗi", description: err.message || "Cập nhật thất bại" });
     } finally {
       setBusyId(null);
     }
@@ -140,10 +278,13 @@ export default function Bookings() {
   const cancelBooking = async (id: string) => {
     setBusyId(id);
     try {
-      const res = await fetch(`http://localhost:5000/api/bookings/${id}/cancel`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `http://localhost:5000/api/bookings/${id}/cancel`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       if (!res.ok) throw new Error("Hủy đơn thất bại");
       setBookings((prev) =>
         prev.map((b) => (b._id === id ? { ...b, status: "cancelled" } : b))
@@ -159,11 +300,10 @@ export default function Bookings() {
   const deleteBooking = async (id: string) => {
     if (
       !confirm(
-        "⚠️ XÓA VĨNH VIỄN đơn này?\n\nHành động này KHÔNG THỂ HOÀN TÁC!"
+        "XÓA VĨNH VIỄN đơn này?\n\nHành động này KHÔNG THỂ HOÀN TÁC!"
       )
     )
       return;
-
     setBusyId(id);
     try {
       const res = await fetch(`http://localhost:5000/api/bookings/${id}`, {
@@ -182,20 +322,36 @@ export default function Bookings() {
 
   return (
     <div className="p-6 max-w-screen-2xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Header + Nút tải lại + Tự động */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý đặt tour</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Quản lý đặt tour
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Xem, xác nhận, hủy hoặc xóa vĩnh viễn các đơn đặt tour
+            Tự động cập nhật khi khách thanh toán xong (đơn chờ thanh toán quá
+            10 phút sẽ tự ẩn)
           </p>
         </div>
-        <Button onClick={fetchAll} disabled={loading} variant="outline">
-          <RefreshCcw
-            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-          />
-          Tải lại
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => fetchAll(true)}
+            disabled={loading}
+            variant="outline"
+          >
+            <RefreshCcw
+              className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
+            />
+            Tải lại ngay
+          </Button>
+          <Button
+            variant={autoRefresh ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+          >
+            {autoRefresh ? "Tự động (10s)" : "Bật tự động"}
+          </Button>
+        </div>
       </div>
 
       {/* Search + Filter */}
@@ -203,29 +359,35 @@ export default function Bookings() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <Input
-            placeholder="Tìm tour, tên khách, SĐT, ghi chú..."
+            placeholder="Tìm tour, tên khách, SĐT, email, ghi chú..."
             className="pl-10"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-
         <div className="flex flex-wrap gap-2">
-          {(["" as const, "pending", "confirmed", "cancelled"] as const).map(
-            (s) => (
-              <Button
-                key={s}
-                variant={statusFilter === s ? "default" : "outline"}
-                onClick={() => setStatusFilter(s)}
-              >
-                {s === "" ? "Tất cả" : statusConfig[s].label}
-              </Button>
-            )
-          )}
+          {(
+            [
+              "" as const,
+              "confirmed",
+              "paid_pending",
+              "paid",
+              "cancelled",
+            ] as const
+          ).map((s) => (
+            <Button
+              key={s}
+              variant={statusFilter === s ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStatusFilter(s === "" ? "" : s)}
+            >
+              {s === "" ? "Tất cả" : getStatus(s).label}
+            </Button>
+          ))}
         </div>
       </div>
 
-      {/* Table */}
+      {/* Bảng danh sách */}
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -238,7 +400,9 @@ export default function Bookings() {
                   <th className="px-6 py-4 font-medium">Liên hệ</th>
                   <th className="px-6 py-4 font-medium">Ngày đi</th>
                   <th className="px-6 py-4 text-center font-medium">SL</th>
-                  <th className="px-6 py-4 text-right font-medium">Tổng tiền</th>
+                  <th className="px-6 py-4 text-right font-medium">
+                    Tổng tiền
+                  </th>
                   <th className="px-6 py-4 font-medium">Trạng thái</th>
                   <th className="px-6 py-4 text-right font-medium">Thao tác</th>
                 </tr>
@@ -248,12 +412,17 @@ export default function Bookings() {
                   <tr>
                     <td colSpan={9} className="text-center py-16">
                       <RefreshCcw className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
-                      <p className="mt-3 text-muted-foreground">Đang tải danh sách...</p>
+                      <p className="mt-3 text-muted-foreground">
+                        Đang tải danh sách...
+                      </p>
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-16 text-muted-foreground text-lg">
+                    <td
+                      colSpan={9}
+                      className="text-center py-16 text-muted-foreground text-lg"
+                    >
                       Không tìm thấy đơn đặt tour nào
                     </td>
                   </tr>
@@ -261,9 +430,12 @@ export default function Bookings() {
                   filtered.map((b) => {
                     const days = getDays(b);
                     const total = (b.tour?.price || 0) * b.people;
-
+                    const emailDisplay = b.user?.email || b.email;
                     return (
-                      <tr key={b._id} className="hover:bg-muted/50 transition-colors">
+                      <tr
+                        key={b._id}
+                        className="hover:bg-muted/50 transition-colors"
+                      >
                         <td className="px-6 py-4">
                           <div className="font-semibold text-indigo-600">
                             #{b._id.slice(-6).toUpperCase()}
@@ -272,7 +444,6 @@ export default function Bookings() {
                             {fmtDate(b.createdAt)}
                           </div>
                         </td>
-
                         <td className="px-6 py-4">
                           <div className="font-medium max-w-xs truncate">
                             {b.tour?.title || "—"}
@@ -282,7 +453,6 @@ export default function Bookings() {
                             {days} ngày
                           </div>
                         </td>
-
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <UserIcon className="w-4 h-4 text-muted-foreground" />
@@ -291,35 +461,37 @@ export default function Bookings() {
                             </span>
                           </div>
                         </td>
-
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-muted-foreground" />
-                            {b.phone}
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Phone className="w-4 h-4 text-muted-foreground" />
+                              <span>{b.phone}</span>
+                            </div>
+                            {emailDisplay && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Mail className="w-3.5 h-3.5" />
+                                <span>{emailDisplay}</span>
+                              </div>
+                            )}
                           </div>
                         </td>
-
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                             {fmtDate(b.bookingDate)}
                           </div>
                         </td>
-
                         <td className="px-6 py-4 text-center font-semibold">
                           {b.people}
                         </td>
-
                         <td className="px-6 py-4 text-right font-bold text-indigo-600">
                           {currencyVN(total)}
                         </td>
-
                         <td className="px-6 py-4">
-                          <Badge className={statusConfig[b.status].color}>
-                            {statusConfig[b.status].label}
+                          <Badge className={getStatus(b.status).color}>
+                            {getStatus(b.status).label}
                           </Badge>
                         </td>
-
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">
                             <Button
@@ -330,19 +502,32 @@ export default function Bookings() {
                               <Eye className="w-4 h-4" />
                             </Button>
 
-                            {b.status === "pending" && (
+                            {/* NÚT GỬI HÓA ĐƠN – CHỈ KHI ĐÃ PAID (GỬI LẠI) */}
+                            {b.status === "paid" && (
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 disabled={busyId === b._id}
-                                onClick={() => updateStatus(b._id, "confirmed")}
-                                className="text-green-600 hover:bg-green-50"
+                                onClick={() => sendInvoice(b._id)}
+                                className="text-indigo-600 hover:bg-indigo-50"
                               >
-                                <Check className="w-4 h-4" />
+                                <Mail className="w-4 h-4" />
                               </Button>
                             )}
 
-                            {b.status !== "cancelled" && (
+                            {/* CHỈ HIỆN KHI ĐÃ THANH TOÁN CHỜ DUYỆT */}
+                            {b.status === "paid_pending" && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                disabled={busyId === b._id}
+                                onClick={() => confirmPayment(b._id)}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </Button>
+                            )}
+
+                            {b.status !== "cancelled" && b.status !== "paid" && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -375,104 +560,153 @@ export default function Bookings() {
         </CardContent>
       </Card>
 
-      {/* Modal Chi Tiết */}
+      {/* Modal chi tiết */}
       {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div
-            className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <CardHeader className="border-b">
+            <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-purple-50">
               <div className="flex justify-between items-center">
                 <CardTitle className="text-2xl">
                   Chi tiết đơn #{detail._id.slice(-6).toUpperCase()}
                 </CardTitle>
                 <div className="flex items-center gap-3">
-                  <Badge className={statusConfig[detail.status].color + " text-sm px-3 py-1"}>
-                    {statusConfig[detail.status].label}
+                  <Badge
+                    className={
+                      getStatus(detail.status).color +
+                      " text-sm px-4 py-2 font-medium"
+                    }
+                  >
+                    {getStatus(detail.status).label}
                   </Badge>
-                  <Button variant="ghost" size="sm" onClick={() => setDetail(null)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDetail(null)}
+                  >
                     <X className="w-5 h-5" />
                   </Button>
                 </div>
               </div>
             </CardHeader>
-
             <CardContent className="p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Tour Info */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg text-gray-800">Thông tin tour</h3>
-                  <div className="space-y-2">
-                    <p><strong>Tên tour:</strong> {detail.tour?.title || "—"}</p>
-                    <p><strong>Giá / người:</strong> {currencyVN(detail.tour?.price)}</p>
-                    <p><strong>Số ngày:</strong> {getDays(detail)} ngày</p>
-                    <p className="text-xl font-bold text-indigo-600 pt-2">
-                      Tổng tiền: {currencyVN((detail.tour?.price || 0) * detail.people)}
+                  <h3 className="font-semibold text-lg text-gray-800">
+                    Thông tin tour
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <p>
+                      <strong>Tên tour:</strong> {detail.tour?.title || "—"}
+                    </p>
+                    <p>
+                      <strong>Giá / người:</strong>{" "}
+                      {currencyVN(detail.tour?.price)}
+                    </p>
+                    <p>
+                      <strong>Số ngày:</strong> {getDays(detail)} ngày
+                    </p>
+                    <p className="text-2xl font-bold text-indigo-600 pt-3 border-t">
+                      Tổng tiền:{" "}
+                      {currencyVN(
+                        (detail.tour?.price || 0) * detail.people
+                      )}
                     </p>
                   </div>
                 </div>
-
-                {/* Customer Info */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg text-gray-800">Khách hàng</h3>
-                  <div className="space-y-2">
-                    <p><strong>Họ tên:</strong> {detail.name}</p>
-                    <p><strong>Số điện thoại:</strong> {detail.phone}</p>
-                    <p><strong>Tài khoản:</strong> {detail.user?.name || "Khách vãng lai"}</p>
+                  <h3 className="font-semibold text-lg text-gray-800">
+                    Khách hàng
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <p>
+                      <strong>Họ tên:</strong> {detail.name}
+                    </p>
+                    <p>
+                      <strong>Số điện thoại:</strong> {detail.phone}
+                    </p>
+                    <p>
+                      <strong>Email:</strong>{" "}
+                      {detail.user?.email || detail.email || "Không có"}
+                    </p>
+                    <p>
+                      <strong>Tài khoản:</strong>{" "}
+                      {detail.user?.name || "Khách vãng lai"}
+                    </p>
                   </div>
                 </div>
-
-                {/* Booking Info */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg text-gray-800">Thông tin đặt tour</h3>
-                  <div className="space-y-2">
-                    <p><strong>Ngày khởi hành:</strong> {fmtDate(detail.bookingDate)}</p>
-                    <p><strong>Số người:</strong> {detail.people} người</p>
-                    <p><strong>Ngày tạo đơn:</strong> {fmtDate(detail.createdAt)}</p>
+                  <h3 className="font-semibold text-lg text-gray-800">
+                    Thông tin đặt tour
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <p>
+                      <strong>Ngày khởi hành:</strong>{" "}
+                      {fmtDate(detail.bookingDate)}
+                    </p>
+                    <p>
+                      <strong>Số người:</strong> {detail.people} người
+                    </p>
+                    <p>
+                      <strong>Ngày tạo đơn:</strong>{" "}
+                      {fmtDate(detail.createdAt)}
+                    </p>
                   </div>
                 </div>
-
-                {/* Note */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg text-gray-800">Ghi chú khách hàng</h3>
-                  <div className="p-4 bg-muted/50 rounded-lg min-h-32 border">
-                    <p className="whitespace-pre-wrap text-sm">
+                  <h3 className="font-semibold text-lg text-gray-800">
+                    Ghi chú khách hàng
+                  </h3>
+                  <div className="p-5 bg-gray-50 rounded-xl border min-h-32 text-sm">
+                    <p className="whitespace-pre-wrap">
                       {detail.note || "Không có ghi chú"}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-6 border-t">
-                {detail.status === "pending" && (
+                {/* GỬI HÓA ĐƠN TRONG MODAL NẾU ĐÃ PAID (GỬI LẠI) */}
+                {detail.status === "paid" && (
                   <Button
-                    onClick={() => updateStatus(detail._id, "confirmed")}
+                    onClick={() => sendInvoice(detail._id)}
                     disabled={busyId === detail._id}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6"
                   >
-                    <Check className="w-4 h-4 mr-2" />
-                    Xác nhận đơn
+                    <Mail className="w-5 h-5 mr-2" />
+                    Gửi hóa đơn tour
                   </Button>
                 )}
 
-                {detail.status !== "cancelled" && (
+                {detail.status === "paid_pending" && (
+                  <Button
+                    onClick={() => confirmPayment(detail._id)}
+                    disabled={busyId === detail._id}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6"
+                  >
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    Xác nhận đã nhận tiền
+                  </Button>
+                )}
+                {detail.status !== "cancelled" && detail.status !== "paid" && (
                   <Button
                     variant="outline"
                     onClick={() => cancelBooking(detail._id)}
                     disabled={busyId === detail._id}
+                    className="border-orange-300 text-orange-600"
                   >
-                    <X className="w-4 h-4 mr-2" />
+                    <X className="w-5 h-5 mr-2" />
                     Hủy đơn
                   </Button>
                 )}
-
                 <Button
                   variant="destructive"
                   onClick={() => deleteBooking(detail._id)}
                   disabled={busyId === detail._id}
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
+                  <Trash2 className="w-5 h-5 mr-2" />
                   Xóa vĩnh viễn
                 </Button>
               </div>

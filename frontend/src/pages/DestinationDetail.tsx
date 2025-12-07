@@ -4,7 +4,14 @@ import Header from "@/components/layouts/Header";
 import Footer from "@/components/layouts/Footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, MapPin, Clock, ArrowLeft, Camera, MessageCircle } from "lucide-react";
+import {
+  Star,
+  MapPin,
+  Clock,
+  ArrowLeft,
+  Camera,
+  MessageCircle,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "@/components/ui/use-toast";
@@ -13,6 +20,9 @@ import { vi } from "date-fns/locale";
 
 const API_URL = "/api/posts";
 const BACKEND_URL = "http://localhost:5000";
+
+// 🔹 LOGO ĐÀ NẴNG TRAVEL
+import logo from "@/assets/logo.png";
 
 /* === XỬ LÝ ẢNH AN TOÀN GIỐNG NewsDetail === */
 const getImageUrl = (imagePath?: string): string => {
@@ -184,7 +194,9 @@ const DestinationDetail = () => {
         return {
           ...prev,
           reviews: exists
-            ? prev.reviews.map((r) => (r._id === updatedReview._id ? updatedReview : r))
+            ? prev.reviews.map((r) =>
+                r._id === updatedReview._id ? updatedReview : r
+              )
             : [updatedReview, ...prev.reviews],
           ratingAverage,
           ratingCount,
@@ -249,12 +261,15 @@ const DestinationDetail = () => {
 
   if (!destination) return null;
 
-  const images = destination.images?.map((img) =>
-    img.startsWith("http") ? img : `${BACKEND_URL}${img}`
-  ) || [];
-  const videoEmbed = destination.videoUrl ? getYouTubeEmbed(destination.videoUrl) : null;
+  const images =
+    destination.images?.map((img) =>
+      img.startsWith("http") ? img : `${BACKEND_URL}${img}`
+    ) || [];
+  const videoEmbed = destination.videoUrl
+    ? getYouTubeEmbed(destination.videoUrl)
+    : null;
 
-  /* === REVIEW CARD – ĐÃ CHỈNH SỬA ĐỂ GIỐNG HỆT NewsDetail === */
+  /* === REVIEW CARD – GIỐNG NewsDetail / DishDetail === */
   const ReviewCard = ({ review, isUser }: { review: Review; isUser: boolean }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const displayName = review.user?.name || "Khách vãng lai";
@@ -272,7 +287,13 @@ const DestinationDetail = () => {
       formatDistanceToNow(new Date(date), { addSuffix: true, locale: vi });
 
     return (
-      <div className={`p-6 rounded-2xl border ${isUser ? "bg-indigo-50/80 border-indigo-300" : "bg-white border-gray-200"} shadow-sm hover:shadow-md transition`}>
+      <div
+        className={`p-6 rounded-2xl border ${
+          isUser
+            ? "bg-indigo-50/80 border-indigo-300"
+            : "bg-white border-gray-200"
+        } shadow-sm hover:shadow-md transition`}
+      >
         <div className="flex gap-5">
           {/* Avatar người dùng */}
           <div className="flex-shrink-0">
@@ -293,23 +314,39 @@ const DestinationDetail = () => {
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`font-bold text-lg ${isUser ? "text-indigo-700" : "text-gray-900"}`}>
+                  <span
+                    className={`font-bold text-lg ${
+                      isUser ? "text-indigo-700" : "text-gray-900"
+                    }`}
+                  >
                     {displayName}
                   </span>
-                  {isUser && <Badge variant="secondary" className="text-xs">Bạn</Badge>}
+                  {isUser && (
+                    <Badge variant="secondary" className="text-xs">
+                      Bạn
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
-                        className={`w-4 h-4 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                        className={`w-4 h-4 ${
+                          i < review.rating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300"
+                        }`}
                       />
                     ))}
                   </div>
-                  <span className="font-medium text-indigo-600">{timeAgo(review.createdAt)}</span>
+                  <span className="font-medium text-indigo-600">
+                    {timeAgo(review.createdAt)}
+                  </span>
                   <span className="text-gray-400">•</span>
-                  <span className="text-gray-500">{formatDate(review.createdAt)}</span>
+                  <span className="text-gray-500">
+                    {formatDate(review.createdAt)}
+                  </span>
                 </div>
               </div>
 
@@ -328,13 +365,19 @@ const DestinationDetail = () => {
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-xl border z-20">
                       <button
-                        onClick={() => { setIsEditing(true); setMenuOpen(false); }}
+                        onClick={() => {
+                          setIsEditing(true);
+                          setMenuOpen(false);
+                        }}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100"
                       >
                         Chỉnh sửa
                       </button>
                       <button
-                        onClick={() => { handleDeleteReview(); setMenuOpen(false); }}
+                        onClick={() => {
+                          handleDeleteReview();
+                          setMenuOpen(false);
+                        }}
                         className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
                       >
                         Xóa
@@ -347,20 +390,25 @@ const DestinationDetail = () => {
 
             <p className="mt-4 text-gray-700 leading-relaxed">{review.content}</p>
 
-            {/* PHẢN HỒI TỪ ADMIN – BÂY GIỜ ĐÃ GIỐNG HỆT NewsDetail */}
+            {/* PHẢN HỒI TỪ ĐÀ NẴNG TRAVEL – giống NewsDetail / DishDetail */}
             {review.reply && (
               <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                 <div className="flex gap-4">
-                  {/* Luôn hiển thị avatar A xanh lá + tên "Quản trị viên" */}
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-lg">
-                    A
+                  <div className="flex-shrink-0">
+                    <img
+                      src={logo}
+                      alt="Đà Nẵng Travel"
+                      className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-lg"
+                    />
                   </div>
                   <div className="flex-1">
-                    <div className="font-bold text-emerald-800 mb-1 flex items-center gap-2">
-                      Quản trị viên
-                      <Badge variant="outline" className="text-xs">Admin</Badge>
+                    {/* ✅ Chỉ 1 lần chữ Đà Nẵng Travel */}
+                    <div className="font-bold text-emerald-800 mb-1">
+                      Đà Nẵng Travel
                     </div>
-                    <p className="text-gray-800 leading-relaxed">{review.reply.content}</p>
+                    <p className="text-gray-800 leading-relaxed">
+                      {review.reply.content}
+                    </p>
                     <p className="text-xs text-gray-500 mt-2">
                       {timeAgo(review.reply.repliedAt)}
                     </p>
@@ -381,7 +429,11 @@ const DestinationDetail = () => {
       {/* HERO */}
       <section className="relative h-[75vh] w-full">
         {images[0] ? (
-          <img src={images[0]} alt={destination.title} className="w-full h-full object-cover" />
+          <img
+            src={images[0]}
+            alt={destination.title}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="bg-gradient-to-br from-blue-600 to-teal-700 w-full h-full" />
         )}
@@ -393,7 +445,9 @@ const DestinationDetail = () => {
             <div className="flex items-center gap-1">
               <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
               <span>
-                {destination.ratingAverage > 0 ? destination.ratingAverage.toFixed(1) : "Chưa có"}{" "}
+                {destination.ratingAverage > 0
+                  ? destination.ratingAverage.toFixed(1)
+                  : "Chưa có"}{" "}
                 {destination.ratingCount > 0 && `(${destination.ratingCount})`}
               </span>
             </div>
@@ -430,8 +484,18 @@ const DestinationDetail = () => {
                   onClick={() => modalRef.current?.close()}
                   className="absolute top-4 right-4 text-white bg-black/60 hover:bg-black/80 rounded-full p-3 transition"
                 >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-8 h-8"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -440,7 +504,10 @@ const DestinationDetail = () => {
             <div className="relative overflow-hidden rounded-2xl shadow-lg">
               <div
                 className="flex gap-5 animate-marquee hover:[animation-play-state:paused]"
-                style={{ width: "max-content", animation: "marquee 35s linear infinite" }}
+                style={{
+                  width: "max-content",
+                  animation: "marquee 35s linear infinite",
+                }}
               >
                 {[...images, ...images].map((img, idx) => (
                   <button
@@ -483,7 +550,10 @@ const DestinationDetail = () => {
         {videoEmbed && (
           <section className="rounded-2xl overflow-hidden shadow-md">
             <h2 className="text-3xl font-bold mb-4">Video giới thiệu</h2>
-            <div className="w-full rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "16 / 9" }}>
+            <div
+              className="w-full rounded-xl overflow-hidden bg-black"
+              style={{ aspectRatio: "16 / 9" }}
+            >
               <iframe
                 src={`${videoEmbed}?rel=0&modestbranding=1`}
                 title="Video"
@@ -499,13 +569,22 @@ const DestinationDetail = () => {
         <section className="bg-muted/30 p-6 rounded-2xl shadow-md">
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="flex flex-wrap justify-center gap-2 md:gap-3 bg-muted rounded-xl p-2">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:shadow font-medium px-4 md:px-5 py-2 rounded-lg text-sm md:text-base">
+              <TabsTrigger
+                value="overview"
+                className="data-[state=active]:bg-white data-[state=active]:shadow font-medium px-4 md:px-5 py-2 rounded-lg text-sm md:text-base"
+              >
                 Tổng quan
               </TabsTrigger>
-              <TabsTrigger value="history" className="data-[state=active]:bg-white data-[state=active]:shadow font-medium px-4 md:px-5 py-2 rounded-lg text-sm md:text-base">
+              <TabsTrigger
+                value="history"
+                className="data-[state=active]:bg-white data-[state=active]:shadow font-medium px-4 md:px-5 py-2 rounded-lg text-sm md:text-base"
+              >
                 Lịch sử
               </TabsTrigger>
-              <TabsTrigger value="tips" className="data-[state=active]:bg-white data-[state=active]:shadow font-medium px-4 md:px-5 py-2 rounded-lg text-sm md:text-base">
+              <TabsTrigger
+                value="tips"
+                className="data-[state=active]:bg-white data-[state=active]:shadow font-medium px-4 md:px-5 py-2 rounded-lg text-sm md:text-base"
+              >
                 Lưu ý
               </TabsTrigger>
             </TabsList>
@@ -513,7 +592,9 @@ const DestinationDetail = () => {
             <div className="mt-6">
               <TabsContent value="overview">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-xl font-semibold mb-3 text-indigo-600">Giới thiệu tổng quan</h3>
+                  <h3 className="text-xl font-semibold mb-3 text-indigo-600">
+                    Giới thiệu tổng quan
+                  </h3>
                   <p className="text-gray-700 text-justify whitespace-pre-line leading-relaxed">
                     {destination.overview || "Chưa có thông tin tổng quan."}
                   </p>
@@ -521,7 +602,9 @@ const DestinationDetail = () => {
               </TabsContent>
               <TabsContent value="history">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-xl font-semibold mb-3 text-teal-600">Lịch sử</h3>
+                  <h3 className="text-xl font-semibold mb-3 text-teal-600">
+                    Lịch sử
+                  </h3>
                   <p className="text-gray-700 text-justify whitespace-pre-line leading-relaxed">
                     {destination.history || "Chưa có thông tin lịch sử."}
                   </p>
@@ -529,7 +612,9 @@ const DestinationDetail = () => {
               </TabsContent>
               <TabsContent value="tips">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-xl font-semibold mb-3 text-amber-600">Lưu ý khi tham quan</h3>
+                  <h3 className="text-xl font-semibold mb-3 text-amber-600">
+                    Lưu ý khi tham quan
+                  </h3>
                   <p className="text-gray-700 whitespace-pre-line leading-relaxed">
                     {destination.notes ||
                       "• Mang theo nước uống và kem chống nắng\n• Mặc đồ thoải mái, giày thể thao\n• Kiểm tra thời tiết trước khi đi"}
@@ -546,7 +631,11 @@ const DestinationDetail = () => {
             <h2 className="text-3xl font-bold mb-6">Điểm nổi bật</h2>
             <div className="flex flex-wrap gap-3">
               {destination.highlights.map((h, idx) => (
-                <Badge key={idx} variant="secondary" className="text-sm px-4 py-2 rounded-full shadow-sm">
+                <Badge
+                  key={idx}
+                  variant="secondary"
+                  className="text-sm px-4 py-2 rounded-full shadow-sm"
+                >
                   {h}
                 </Badge>
               ))}
@@ -555,7 +644,10 @@ const DestinationDetail = () => {
         )}
 
         {/* ĐÁNH GIÁ & BÌNH LUẬN */}
-        <section id="reviews-section" className="bg-white rounded-3xl shadow-xl p-8 border">
+        <section
+          id="reviews-section"
+          className="bg-white rounded-3xl shadow-xl p-8 border"
+        >
           <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
             <MessageCircle className="w-8 h-8 text-indigo-600" />
             Đánh giá & Bình luận
@@ -563,16 +655,25 @@ const DestinationDetail = () => {
 
           {/* Form đánh giá */}
           {(!userReview || isEditing) && (
-            <form onSubmit={handleReviewSubmit} className="mb-10 pb-10 border-b-2">
+            <form
+              onSubmit={handleReviewSubmit}
+              className="mb-10 pb-10 border-b-2"
+            >
               <div className="mb-6">
-                <p className="font-medium mb-3 text-lg">Chọn số sao của bạn</p>
+                <p className="font-medium mb-3 text-lg">
+                  Chọn số sao của bạn
+                </p>
                 <div className="flex gap-3">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
-                      onClick={() => setNewReview({ ...newReview, rating: star })}
+                      onClick={() =>
+                        setNewReview({ ...newReview, rating: star })
+                      }
                       className={`w-12 h-12 cursor-pointer transition hover:scale-110 ${
-                        star <= newReview.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                        star <= newReview.rating
+                          ? "text-yellow-400 fill-yellow-400"
+                          : "text-gray-300"
                       }`}
                     />
                   ))}
@@ -584,7 +685,9 @@ const DestinationDetail = () => {
                 className="w-full p-5 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 focus:outline-none resize-none text-base"
                 rows={6}
                 value={newReview.content}
-                onChange={(e) => setNewReview({ ...newReview, content: e.target.value })}
+                onChange={(e) =>
+                  setNewReview({ ...newReview, content: e.target.value })
+                }
               />
 
               <div className="flex gap-4 mt-6">
@@ -594,16 +697,23 @@ const DestinationDetail = () => {
                   disabled={submitting}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-8"
                 >
-                  {submitting ? "Đang gửi..." : isEditing ? "Cập nhật đánh giá" : "Gửi đánh giá"}
+                  {submitting
+                    ? "Đang gửi..."
+                    : isEditing
+                    ? "Cập nhật đánh giá"
+                    : "Gửi đánh giá"}
                 </Button>
-                {isEditing && (
+                {isEditing && userReview && (
                   <Button
                     type="button"
                     size="lg"
                     variant="outline"
                     onClick={() => {
                       setIsEditing(false);
-                      setNewReview({ rating: userReview!.rating, content: userReview!.content });
+                      setNewReview({
+                        rating: userReview.rating,
+                        content: userReview.content,
+                      });
                     }}
                   >
                     Hủy
@@ -622,7 +732,13 @@ const DestinationDetail = () => {
             ) : (
               destination.reviews.map((review) => {
                 const isUserReview = userReview?._id === review._id;
-                return <ReviewCard key={review._id} review={review} isUser={isUserReview} />;
+                return (
+                  <ReviewCard
+                    key={review._id}
+                    review={review}
+                    isUser={isUserReview}
+                  />
+                );
               })
             )}
           </div>
@@ -634,8 +750,15 @@ const DestinationDetail = () => {
             variant="secondary"
             className="flex-1 flex items-center justify-center gap-2 text-lg py-4 rounded-xl shadow"
             onClick={() => {
-              const query = `${destination.title}, ${destination.place || ""}, Đà Nẵng`;
-              window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank");
+              const query = `${destination.title}, ${
+                destination.place || ""
+              }, Đà Nẵng`;
+              window.open(
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  query
+                )}`,
+                "_blank"
+              );
             }}
           >
             <MapPin className="h-5 w-5" /> Xem vị trí
@@ -651,7 +774,7 @@ const DestinationDetail = () => {
       </main>
 
       <Footer />
-    </div>
+    </div>  
   );
 };
 

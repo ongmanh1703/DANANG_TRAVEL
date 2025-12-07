@@ -169,14 +169,7 @@ const CuisineSection = () => {
           ))}
         </div>
 
-        <div className="text-center">
-          <Button variant="outline" size="lg" className="border-secondary text-secondary hover:bg-secondary hover:text-white mr-4">
-            Khám phá ẩm thực
-          </Button>
-          <Button size="lg" className="sunset-gradient hover:opacity-90 text-white">
-            Food Tour Đà Nẵng
-          </Button>
-        </div>
+       
       </div>
     </section>
   );

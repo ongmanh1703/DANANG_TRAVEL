@@ -1,5 +1,4 @@
-// src/pages/BookTour.tsx → HOÀN THIỆN 100% – CHỈ SỬA HIỂN THỊ ẢNH
-
+// src/pages/BookTour.tsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Header from "@/components/layouts/Header";
@@ -25,15 +24,16 @@ import { vi } from "date-fns/locale";
 
 const API_URL = "http://localhost:5000";
 
-/* ─────────────── HÀM CHUẨN HIỂN THỊ ẢNH – GIỐNG HỆT NewsDetail.tsx ─────────────── */
+// 🔹 LOGO ĐÀ NẴNG TRAVEL
+import logo from "@/assets/logo.png";
+
 const getImageUrl = (path?: string): string => {
   if (!path) return "/placeholder.svg";
-  if (path.startsWith("data:")) return path;                    // base64 → dùng luôn
-  if (path.startsWith("http")) return path;                     // link đầy đủ
+  if (path.startsWith("data:")) return path;
+  if (path.startsWith("http")) return path;
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_URL}${cleanPath}`;
 };
-/* ─────────────────────────────────────────────────────────────────────────────── */
 
 interface Review {
   _id: string;
@@ -85,6 +85,7 @@ const BookTour = () => {
     date: "",
   });
   const [formError, setFormError] = useState("");
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [newReview, setNewReview] = useState({ rating: 0, content: "" });
@@ -92,7 +93,10 @@ const BookTour = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Kiểm tra đăng nhập
+  // 👉 email lấy từ Profile (localStorage "user")
+  const [userEmail, setUserEmail] = useState("");
+
+  // Kiểm tra đăng nhập + lấy email/name/phone từ profile
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -102,6 +106,22 @@ const BookTour = () => {
         variant: "destructive",
       });
       navigate("/login");
+      return;
+    }
+
+    const userJson = localStorage.getItem("user");
+    if (userJson) {
+      try {
+        const u = JSON.parse(userJson);
+        setUserEmail(u.email || "");
+        setForm((prev) => ({
+          ...prev,
+          name: prev.name || u.name || "",
+          phone: prev.phone || u.phone || "",
+        }));
+      } catch {
+        // ignore parse error
+      }
     }
   }, [navigate]);
 
@@ -127,7 +147,7 @@ const BookTour = () => {
     if (id) fetchTour();
   }, [id, navigate]);
 
-  // LẤY ĐÁNH GIÁ CỦA TOUR + ĐÁNH GIÁ CỦA USER
+  // Lấy đánh giá
   useEffect(() => {
     const fetchReviews = async () => {
       if (!id) return;
@@ -160,7 +180,7 @@ const BookTour = () => {
     fetchReviews();
   }, [id]);
 
-  // GỬI HOẶC CẬP NHẬT ĐÁNH GIÁ
+  // Gửi / cập nhật đánh giá
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newReview.rating === 0 || !newReview.content.trim()) {
@@ -221,7 +241,7 @@ const BookTour = () => {
     }
   };
 
-  // XÓA ĐÁNH GIÁ
+  // Xóa đánh giá
   const handleDeleteReview = async () => {
     if (!window.confirm("Bạn có chắc muốn xóa đánh giá này?")) return;
 
@@ -252,13 +272,17 @@ const BookTour = () => {
     }
   };
 
-  // ĐẶT TOUR
+  // Đặt tour
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.phone || !form.date || form.people < 1) {
       setFormError("Vui lòng điền đầy đủ thông tin bắt buộc!");
       return;
     }
+
+    if (bookingSubmitting) return;
+    setFormError("");
+    setBookingSubmitting(true);
 
     try {
       const token = localStorage.getItem("token");
@@ -275,19 +299,31 @@ const BookTour = () => {
           note: form.note,
           name: form.name,
           phone: form.phone,
+          email: userEmail || undefined, // <-- gửi email lấy từ profile
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Đặt tour thất bại");
 
+      const bookingId =
+        data.booking?._id || data._id || data.id || data.bookingId;
+
       toast({
-        title: "Thành công!",
-        description: "Đặt tour thành công! Chúng tôi sẽ liên hệ sớm.",
+        title: "Đặt tour thành công!",
+        description:
+          "Vui lòng thanh toán trong vòng 10 phút để giữ chỗ. Hệ thống đang chuyển đến trang thanh toán...",
       });
-      navigate("/my-bookings");
+
+      if (bookingId) {
+        navigate(`/payment/${bookingId}`);
+      } else {
+        navigate("/my-bookings");
+      }
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
+    } finally {
+      setBookingSubmitting(false);
     }
   };
 
@@ -303,7 +339,6 @@ const BookTour = () => {
       </div>
     );
 
-  // TÍNH RATING TRUNG BÌNH
   const calculateRating = () => {
     if (!reviews || reviews.length === 0) {
       return { avg: "Chưa có", count: 0 };
@@ -315,7 +350,6 @@ const BookTour = () => {
 
   const { avg: avgRating, count: reviewCount } = calculateRating();
 
-  // Helper thời gian
   const timeAgo = (date: string) => {
     return formatDistanceToNow(new Date(date), { addSuffix: true, locale: vi });
   };
@@ -328,7 +362,6 @@ const BookTour = () => {
     });
   };
 
-  // REVIEW CARD – HIỂN THỊ ẢNH GIỐNG HỆT TRANG TIN TỨC
   const ReviewCard = ({
     review,
     isUser,
@@ -350,7 +383,6 @@ const BookTour = () => {
         } shadow-sm hover:shadow-md transition`}
       >
         <div className="flex gap-5">
-          {/* Avatar người dùng */}
           <div className="flex-shrink-0">
             {review.user?.avatar ? (
               <img
@@ -365,7 +397,6 @@ const BookTour = () => {
             )}
           </div>
 
-          {/* Nội dung đánh giá */}
           <div className="flex-1">
             <div className="flex items-start justify-between">
               <div>
@@ -407,7 +438,6 @@ const BookTour = () => {
                 </div>
               </div>
 
-              {/* Menu 3 chấm */}
               {isUser && !isEditing && (
                 <div className="relative">
                   <Button
@@ -455,29 +485,21 @@ const BookTour = () => {
               {review.content}
             </p>
 
-            {/* PHẢN HỒI TỪ ADMIN – CÓ ẢNH THẬT (giống NewsDetail) */}
+            {/* PHẢN HỒI TỪ ĐÀ NẴNG TRAVEL – giống NewsDetail / DishDetail / DestinationDetail */}
             {review.reply && (
               <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                 <div className="flex gap-4">
                   <div className="flex-shrink-0">
-                    {review.reply.admin?.avatar ? (
-                      <img
-                        src={getImageUrl(review.reply.admin.avatar)}
-                        alt={review.reply.admin.name}
-                        className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold shadow-lg">
-                        A
-                      </div>
-                    )}
+                    <img
+                      src={logo}
+                      alt="Đà Nẵng Travel"
+                      className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-lg"
+                    />
                   </div>
                   <div className="flex-1">
-                    <div className="font-bold text-emerald-800 mb-1 flex items-center gap-2">
-                      {review.reply.admin?.name || "Quản trị viên"}
-                      <Badge variant="outline" className="text-xs">
-                        Admin
-                      </Badge>
+                    {/* ✅ Chỉ 1 lần chữ Đà Nẵng Travel */}
+                    <div className="font-bold text-emerald-800 mb-1">
+                      Đà Nẵng Travel
                     </div>
                     <p className="text-gray-800 leading-relaxed">
                       {review.reply.content}
@@ -534,7 +556,6 @@ const BookTour = () => {
                 </p>
               )}
 
-              {/* Điểm nổi bật & Bao gồm */}
               {tour.highlights?.length > 0 && (
                 <div className="mt-10">
                   <h3 className="text-2xl font-bold mb-6 text-indigo-700 flex items-center gap-2">
@@ -602,7 +623,6 @@ const BookTour = () => {
                   Đánh giá & Bình luận
                 </h2>
 
-                {/* Form gửi/cập nhật đánh giá */}
                 {(!userReview || isEditing) && (
                   <form
                     onSubmit={handleReviewSubmit}
@@ -649,15 +669,15 @@ const BookTour = () => {
                           ? "Cập nhật đánh giá"
                           : "Gửi đánh giá"}
                       </Button>
-                      {isEditing && (
+                      {isEditing && userReview && (
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => {
                             setIsEditing(false);
                             setNewReview({
-                              rating: userReview!.rating,
-                              content: userReview!.content,
+                              rating: userReview.rating,
+                              content: userReview.content,
                             });
                           }}
                         >
@@ -668,7 +688,6 @@ const BookTour = () => {
                   </form>
                 )}
 
-                {/* Danh sách đánh giá */}
                 <div className="space-y-8">
                   {reviews.length === 0 ? (
                     <div className="text-center py-16 text-gray-500 italic text-lg">
@@ -728,6 +747,21 @@ const BookTour = () => {
                     </div>
                   </div>
 
+                  {/* EMAIL LẤY TỪ PROFILE – CHỈ HIỂN THỊ, KHÔNG CHO SỬA Ở ĐÂY */}
+                  <div>
+                    <Label>Email nhận hóa đơn</Label>
+                    <Input
+                      className="mt-1"
+                      value={userEmail}
+                      disabled
+                      placeholder="Cập nhật email trong Hồ sơ cá nhân"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Email được lấy từ hồ sơ cá nhân của bạn để gửi hóa đơn &
+                      thông tin tour.
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Ngày đi</Label>
@@ -778,13 +812,19 @@ const BookTour = () => {
                     />
                   </div>
 
-                  <div className="p-5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+                  <div className="p-5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 space-y-2">
                     <div className="flex justify-between text-xl font-bold">
                       <span>Tổng tiền ({form.people} người):</span>
                       <span className="text-indigo-700">
                         {formatPrice(tour.price * form.people)}
                       </span>
                     </div>
+                    <p className="text-sm text-indigo-600 font-medium">
+                      Sau khi đặt, bạn sẽ có{" "}
+                      <span className="font-bold">10 phút</span> để thanh toán
+                      online (MoMo / VNPAY) nhằm giữ chỗ. Đơn quá thời gian sẽ
+                      tự động hết hiệu lực.
+                    </p>
                   </div>
 
                   {formError && (
@@ -796,9 +836,12 @@ const BookTour = () => {
                   <Button
                     type="submit"
                     size="lg"
+                    disabled={bookingSubmitting}
                     className="w-full text-lg font-bold bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
                   >
-                    Xác nhận đặt tour ngay
+                    {bookingSubmitting
+                      ? "Đang tạo đơn đặt tour..."
+                      : "Xác nhận đặt tour ngay"}
                   </Button>
                 </form>
               </CardContent>

@@ -23,7 +23,7 @@ exports.getUser = async (req, res) => {
   }
 };
 
-// 2. CẬP NHẬT HỒ SƠ (API chính cho trang Profile)
+// 2. CẬP NHẬT HỒ SƠ (API chính cho trang Profile cá nhân)
 exports.updateProfile = async (req, res) => {
   try {
     if (!req.user) {
@@ -32,15 +32,14 @@ exports.updateProfile = async (req, res) => {
 
     const updates = req.body;
 
-    // Chỉ cho phép cập nhật các field này
     const allowedFields = [
       'name',
       'email',
       'phone',
       'address',
       'bio',
-      'avatar',      // base64 string
-      'birthDate',   // YYYY-MM-DD
+      'avatar',
+      'birthDate',
     ];
 
     const filteredUpdates = {};
@@ -50,7 +49,7 @@ exports.updateProfile = async (req, res) => {
       }
     });
 
-    // Kiểm tra email trùng (trừ chính người dùng)
+    // Kiểm tra email trùng (trừ chính người dùng hiện tại)
     if (filteredUpdates.email) {
       const existingUser = await User.findOne({
         email: filteredUpdates.email,
@@ -101,6 +100,92 @@ exports.getAllUsers = async (req, res) => {
     });
   } catch (error) {
     console.error('Lỗi getAllUsers:', error);
+    res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
+};
+
+// 4. Admin cập nhật thông tin người dùng (KHÔNG CHO SỬA EMAIL)
+exports.updateUserByAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Chỉ admin mới có quyền này' });
+    }
+
+    const { userId } = req.params;
+    const updates = req.body;
+
+    // Các field admin được phép sửa (email bị loại bỏ)
+    const allowedFields = [
+      'name',
+      'phone',
+      'address',
+      'bio',
+      'avatar',
+      'birthDate',
+      'role', // Admin được đổi vai trò
+    ];
+
+    const filteredUpdates = {};
+    allowedFields.forEach(field => {
+      if (updates[field] !== undefined && updates[field] !== null) {
+        filteredUpdates[field] = updates[field];
+      }
+    });
+
+    if (Object.keys(filteredUpdates).length === 0) {
+      return res.status(400).json({ message: 'Không có dữ liệu hợp lệ để cập nhật' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: filteredUpdates },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật người dùng thành công',
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error('Lỗi updateUserByAdmin:', error);
+    res.status(500).json({
+      message: 'Cập nhật thất bại',
+      error: error.message,
+    });
+  }
+};
+
+// 5. Admin xóa người dùng
+exports.deleteUser = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Chỉ admin mới có quyền này' });
+    }
+
+    const { userId } = req.params;
+
+    // Không cho admin tự xóa chính mình
+    if (req.user._id.toString() === userId) {
+      return res.status(400).json({ message: 'Không thể tự xóa tài khoản của chính mình' });
+    }
+
+    const deletedUser = await User.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng để xóa' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Xóa người dùng thành công',
+    });
+  } catch (error) {
+    console.error('Lỗi deleteUser:', error);
     res.status(500).json({ message: 'Lỗi máy chủ' });
   }
 };

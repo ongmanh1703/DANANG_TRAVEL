@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layouts/Header";
 import Footer from "@/components/layouts/Footer";
@@ -7,333 +7,243 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import {
-  ArrowLeft,
-  Calendar,
-  Users,
-  CreditCard,
-  User as UserIcon,
-  Clock,
-  X,
-  Trash2,
-  MapPin,
-  CheckCircle2,
-  AlertCircle,
-  XCircle,
-  Sparkles,
+  ArrowLeft, Calendar, Users, CreditCard, User as UserIcon,
+  Clock, X, Trash2, MapPin, CheckCircle2, AlertCircle, XCircle, Sparkles
 } from "lucide-react";
 
-const currencyVN = (n?: number) =>
-  typeof n === "number" ? new Intl.NumberFormat("vi-VN").format(n) + "đ" : "-";
+const PAYMENT_TIMEOUT_MS = 10 * 60 * 1000;
+
+const currencyVN = (n?: number) => n ? new Intl.NumberFormat("vi-VN").format(n) + "đ" : "-";
+const formatCountdown = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
+const getTimeLeftMs = (b: any, now: number) => b.status === "confirmed" && b.createdAt ? Math.max(0, new Date(b.createdAt).getTime() + PAYMENT_TIMEOUT_MS - now) : null;
 
 const MyBookings = () => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
+  const autoCancelRef = useRef<Set<string>>(new Set());
 
+  // Clock tick
   useEffect(() => {
-    const fetchBookings = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        toast({ title: "Chưa đăng nhập", description: "Vui lòng đăng nhập để xem đơn đặt tour" });
-        navigate("/login");
-        return;
-      }
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
-      try {
-        const res = await fetch("http://localhost:5000/api/bookings", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("Không thể tải danh sách đơn");
-        const data = await res.json();
-        setBookings(data);
-      } catch (err: any) {
-        toast({ title: "Lỗi", description: err.message });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchBookings();
+  // Fetch bookings
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast({ title: "Chưa đăng nhập", description: "Vui lòng đăng nhập để xem đơn đặt tour" });
+      return navigate("/login");
+    }
+
+    fetch("http://localhost:5000/api/bookings", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : Promise.reject("Không thể tải đơn"))
+      .then(setBookings)
+      .catch(err => toast({ title: "Lỗi", description: err.message || err }))
+      .finally(() => setLoading(false));
   }, [navigate]);
 
-  const getDays = (b: any) =>
-    b?.tour?.duration ?? b?.tour?.days ?? b?.tour?.durationDays ?? b?.duration ?? 1;
-
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("vi-VN", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
+  // Auto cancel
+  useEffect(() => {
+    bookings.forEach(b => {
+      const left = getTimeLeftMs(b, now);
+      if (b.status === "confirmed" && left !== null && left <= 0 && !autoCancelRef.current.has(b._id)) {
+        autoCancelRef.current.add(b._id);
+        fetch(`http://localhost:5000/api/bookings/${b._id}/cancel`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        }).then(() => {
+          setBookings(prev => prev.filter(x => x._id !== b._id));
+          toast({ title: "Đã tự động hủy", description: "Quá hạn thanh toán 10 phút" });
+        });
+      }
     });
+  }, [now, bookings]);
 
-  const getStatusConfig = (status: string) => {
-    const configs = {
-      confirmed: { label: "Đã xác nhận", color: "emerald", icon: CheckCircle2 },
-      pending: { label: "Đang xử lý", color: "amber", icon: AlertCircle },
-      cancelled: { label: "Đã hủy", color: "red", icon: XCircle },
-    } as const;
+  const getDays = (b: any) => b?.tour?.duration ?? b?.tour?.days ?? b?.duration ?? 1;
+  const formatDate = (d: string) => new Date(d).toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-    return configs[status as keyof typeof configs] ?? {
-      label: "Không rõ",
-      color: "gray",
-      icon: AlertCircle,
-    };
-  };
+  const getStatus = (s: string) => ({
+    confirmed: { label: "Chờ thanh toán", color: "yellow", icon: Clock },
+    paid_pending: { label: "Chờ xác nhận", color: "orange", icon: AlertCircle },
+    paid: { label: "Đã thanh toán", color: "emerald", icon: CheckCircle2 },
+    cancelled: { label: "Đã hủy", color: "red", icon: XCircle },
+  }[s] || { label: "Không rõ", color: "gray", icon: AlertCircle });
 
   const cancelBooking = async (id: string) => {
-    if (!confirm("Bạn có chắc chắn muốn hủy đơn này không?")) return;
-
+    if (!confirm("Hủy đơn này?")) return;
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:5000/api/bookings/${id}/cancel`, {
+      await fetch(`http://localhost:5000/api/bookings/${id}/cancel`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
       });
-
-      if (!res.ok) throw new Error("Hủy đơn thất bại");
-
-      // Cập nhật trạng thái thành cancelled (giữ lại để hiển thị nút Xóa)
-      setBookings((prev) =>
-        prev.map((b) => (b._id === id ? { ...b, status: "cancelled" } : b))
-      );
-
-      toast({
-        title: "Đã hủy đơn",
-        description: "Bạn có thể xóa vĩnh viễn đơn này nếu muốn.",
-      });
-    } catch (err: any) {
-      toast({ title: "Lỗi", description: err.message });
-    }
+      setBookings(prev => prev.map(b => b._id === id ? { ...b, status: "cancelled" } : b));
+      toast({ title: "Đã hủy đơn" });
+    } catch { toast({ title: "Lỗi", description: "Hủy thất bại" }); }
   };
 
   const deleteBooking = async (id: string) => {
-    if (!confirm("XÓA VĨNH VIỄN đơn này? Bạn sẽ không thể khôi phục!")) return;
+    if (!confirm("XÓA VĨNH VIỄN?")) return;
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:5000/api/bookings/${id}`, {
+      await fetch(`http://localhost:5000/api/bookings/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
       });
-      if (!res.ok) throw new Error("Xóa thất bại");
-      setBookings((prev) => prev.filter((b) => b._id !== id));
-      toast({ title: "Đã xóa", description: "Đơn đã được xóa hoàn toàn" });
-    } catch (err: any) {
-      toast({ title: "Lỗi", description: err.message });
-    }
+      setBookings(prev => prev.filter(b => b._id !== id));
+      toast({ title: "Đã xóa vĩnh viễn" });
+    } catch { toast({ title: "Lỗi xóa" }); }
   };
 
-  // Loading & Empty State (giữ nguyên đẹp như cũ)
-  if (loading) {
-    return (
-      <>
-        <Header />
-        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center px-6">
-          <div className="text-center">
-            <div className="w-24 h-24 mx-auto mb-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full animate-pulse shadow-2xl" />
-            <p className="text-2xl font-light text-gray-700 animate-pulse">
-              Đang tải những chuyến đi của bạn...
-            </p>
-          </div>
+  // Loading
+  if (loading) return (
+    <>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full animate-pulse mb-6" />
+          <p className="text-xl text-gray-700">Đang tải hành trình của bạn...</p>
         </div>
-        <Footer />
-      </>
-    );
-  }
+      </div>
+      <Footer />
+    </>
+  );
 
-  if (bookings.length === 0) {
-    return (
-      <>
-        <Header />
-        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center px-6 py-20">
-          <div className="text-center max-w-3xl mx-auto">
-            <div className="relative mb-12">
-              <div className="absolute inset-0 blur-3xl opacity-40">
-                <div className="w-64 h-64 mx-auto bg-gradient-to-br from-indigo-400 to-purple-600 rounded-full animate-pulse" />
-              </div>
-              <div className="relative">
-                <div className="w-48 h-48 mx-auto bg-white rounded-full shadow-2xl flex items-center justify-center border-8 border-white">
-                  <div className="w-32 h-32 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <MapPin className="w-20 h-20 text-white" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <h1 className="text-5xl md:text-6xl font-extralight text-gray-800 mb-6 leading-tight">
-              Chưa có chuyến đi nào
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-600 mb-10 font-light">
-              Hành trình của bạn vẫn đang chờ được viết nên...
-            </p>
-            <p className="text-lg text-gray-500 mb-12 max-w-2xl mx-auto leading-relaxed">
-              Hãy để chúng tôi đưa bạn đến những vùng đất mới, những trải nghiệm đáng nhớ và những kỷ niệm không thể nào quên.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-              <Button
-                size="lg"
-                onClick={() => navigate("/tours")}
-                className="relative px-12 py-8 text-lg font-medium rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white shadow-2xl transform hover:scale-105 transition-all duration-300 overflow-hidden group"
-              >
-                <span className="relative z-10 flex items-center gap-3">
-                  <Sparkles className="w-6 h-6 group-hover:animate-spin" />
-                  Khám phá tour ngay bây giờ
-                </span>
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => navigate("/")}
-                className="px-10 py-8 text-lg rounded-full border-2 border-purple-300 hover:bg-purple-50 backdrop-blur-sm"
-              >
-                Về trang chủ
-              </Button>
-            </div>
-
-            <p className="mt-16 text-sm text-gray-500 italic font-light">
-              "Du lịch không chỉ là đi, mà là sống thêm một lần nữa."
-            </p>
-          </div>
+  // Empty
+  if (!bookings.length) return (
+    <>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-pink-50 flex items-center justify-center py-20 px-6">
+        <div className="text-center max-w-2xl">
+          <MapPin className="w-32 h-32 mx-auto text-indigo-600 mb-8" />
+          <h1 className="text-5xl font-extralight text-gray-800 mb-4">Chưa có chuyến đi nào</h1>
+          <p className="text-xl text-gray-600 mb-10">Hành trình tuyệt vời đang chờ bạn khám phá</p>
+          <Button size="lg" onClick={() => navigate("/tours")} className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-10 py-6 rounded-full text-lg font-medium">
+            <Sparkles className="mr-2" /> Khám phá tour ngay
+          </Button>
         </div>
-        <Footer />
-      </>
-    );
-  }
+      </div>
+      <Footer />
+    </>
+  );
 
+  // Main
   return (
     <>
       <Header />
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 py-16 px-4">
         <div className="max-w-7xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="mb-8 text-gray-600 hover:text-indigo-600 hover:bg-white/80 backdrop-blur rounded-full"
-          >
-            <ArrowLeft className="mr-2 h-5 w-5" /> Quay lại
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mb-8 rounded-full">
+            <ArrowLeft className="mr-2" /> Quay lại
           </Button>
 
-          <div className="text-center mb-12">
-            <h1 className="text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Đơn đặt tour của bạn
-            </h1>
-            <p className="mt-4 text-lg text-gray-600">Quản lý và theo dõi các chuyến đi sắp tới</p>
-          </div>
+          <h1 className="text-center text-5xl font-bold bg-gradient-to-r from-indigo-600 to-pink-600 bg-clip-text text-transparent mb-12">
+            Đơn đặt tour của bạn
+          </h1>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {bookings.map((b) => {
+            {bookings.map(b => {
               const total = (b.tour?.price || 0) * b.people;
               const days = getDays(b);
-              const status = getStatusConfig(b.status);
+              const status = getStatus(b.status);
               const StatusIcon = status.icon;
+              const timeLeft = getTimeLeftMs(b, now);
+              const isExpired = b.status === "confirmed" && timeLeft !== null && timeLeft <= 0;
+              const canPay = b.status === "confirmed" && !isExpired;
 
               return (
-                <Card
-                  key={b._id}
-                  className="group relative overflow-hidden rounded-3xl border-0 shadow-xl bg-white/90 backdrop-blur-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-3"
-                >
-                  <div className={`h-2 bg-gradient-to-r 
-                    ${b.status === 'confirmed' ? 'from-emerald-500 to-teal-600' : ''}
-                    ${b.status === 'pending' ? 'from-amber-500 to-orange-600' : ''}
-                    ${b.status === 'cancelled' ? 'from-red-500 to-rose-600' : 'from-gray-400 to-gray-600'}
-                  `} />
+                <Card key={b._id} className="group relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-xl shadow-xl hover:shadow-2xl hover:-translate-y-2 transition-all duration-500">
+                  <div className={`h-2 bg-gradient-to-r ${b.status === "confirmed" ? "from-yellow-400 to-amber-500" : b.status === "paid_pending" ? "from-orange-400 to-amber-500" : b.status === "paid" ? "from-emerald-500 to-teal-600" : "from-red-500 to-rose-600"}`} />
 
-                  <div className="p-8">
-                    <div className="flex justify-between items-start mb-6">
-                      <h3 className="text-2xl font-bold text-gray-800 line-clamp-2">
-                        {b.tour?.title || "Tour không tên"}
-                      </h3>
-                      <Badge
-                        variant="outline"
-                        className={`ml-3 border-${status.color}-300 text-${status.color}-700 bg-${status.color}-50 flex items-center gap-1`}
-                      >
-                        <StatusIcon className="w-3.5 h-3.5" />
-                        {status.label}
+                  <div className="p-7">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-xl font-bold text-gray-800 line-clamp-2">{b.tour?.title || "Tour không tên"}</h3>
+                      <Badge variant="outline" className={`border-${status.color}-300 text-${status.color}-700 bg-${status.color}-50`}>
+                        <StatusIcon className="w-4 h-4 mr-1" /> {status.label}
                       </Badge>
                     </div>
 
-                    <div className="space-y-5 text-gray-700">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-100 rounded-full"><UserIcon className="w-5 h-5 text-indigo-600" /></div>
-                        <div><p className="text-sm text-gray-500">Người đặt</p><p className="font-semibold">{b.name}</p></div>
+                    {/* Countdown */}
+                    {b.status === "confirmed" && timeLeft !== null && timeLeft > 0 && (
+                      <div className="mb-5 p-4 bg-orange-50 border border-orange-200 rounded-xl text-center">
+                        <p className="text-sm text-orange-700 font-medium">Còn lại</p>
+                        <p className="text-3xl font-bold text-orange-600 font-mono">{formatCountdown(timeLeft)}</p>
                       </div>
+                    )}
 
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-full"><Calendar className="w-5 h-5 text-purple-600" /></div>
-                        <div><p className="text-sm text-gray-500">Ngày khởi hành</p><p className="font-semibold capitalize">{formatDate(b.bookingDate)}</p></div>
+                    {isExpired && (
+                      <div className="mb-5 p-4 bg-red-50 border border-red-300 rounded-xl text-center text-red-700 font-medium">
+                        Đã hết hạn thanh toán
                       </div>
+                    )}
 
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="flex items-center gap-3">
-                          <div className="p-3 bg-pink-100 rounded-full"><Clock className="w-5 h-5 text-pink-600" /></div>
-                          <div><p className="text-sm text-gray-500">Thời gian</p><p className="font-bold">{days} ngày</p></div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="p-3 bg-teal-100 rounded-full"><Users className="w-5 h-5 text-teal-600" /></div>
-                          <div><p className="text-sm text-gray-500">Số người</p><p className="font-bold">{b.people} khách</p></div>
-                        </div>
+                    {/* Info */}
+                    <div className="space-y-4 text-gray-700 mb-6">
+                      <div className="flex items-center gap-3"><UserIcon className="w-5 h-5 text-indigo-600" /><span className="font-medium">{b.name}</span></div>
+                      <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-purple-600" /><span>{formatDate(b.bookingDate)}</span></div>
+                      <div className="flex justify-between">
+                        <div className="flex items-center gap-2"><Clock className="w-5 h-5 text-pink-600" /><span>{days} ngày</span></div>
+                        <div className="flex items-center gap-2"><Users className="w-5 h-5 text-teal-600" /><span>{b.people} khách</span></div>
                       </div>
                     </div>
 
-                    <div className="mt-8 p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Giá mỗi người</span>
-                        <span className="font-medium">{currencyVN(b.tour?.price)}</span>
-                      </div>
-                      <div className="mt-4 flex justify-between text-2xl font-bold">
-                        <span className="text-gray-700">Tổng tiền</span>
+                    {/* Price */}
+                    <div className="p-5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200">
+                      <div className="flex justify-between text-2xl font-bold">
+                        <span>Tổng</span>
                         <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                           {currencyVN(total)}
                         </span>
                       </div>
                     </div>
 
-                    {b.note && (
-                      <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2">
-                        <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                        <span>Ghi chú: {b.note}</span>
+                    {/* TRẠNG THÁI ĐẶC BIỆT - SIÊU GỌN & ĐẸP */}
+                    {b.status === "paid" && (
+                      <div className="mt-6 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-300 text-center">
+                        <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-600 mb-2" />
+                        <p className="text-xl font-bold text-emerald-800">HOÀN TẤT</p>
+                        <p className="text-sm text-emerald-700">Chuyến đi đã sẵn sàng!</p>
                       </div>
                     )}
 
-                    {/* PHẦN QUAN TRỌNG: NÚT HÀNH ĐỘNG */}
-                    <div className="mt-8 flex flex-wrap gap-3 justify-end">
-                      {/* Thanh toán */}
-                      {b.status === "confirmed" && (
-                        <Button
-                          onClick={() => navigate(`/payment/${b._id}`)}
-                          className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg"
-                        >
-                          <CreditCard className="mr-2 h-4 w-4" /> Thanh toán ngay
+                    {b.status === "paid_pending" && (
+                      <div className="mt-6 p-5 bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-300 text-center">
+                        <AlertCircle className="w-12 h-12 mx-auto text-orange-600 mb-2 animate-pulse" />
+                        <p className="text-xl font-bold text-orange-800">CHỜ XÁC NHẬN</p>
+                        <p className="text-sm text-orange-700">Đang kiểm tra thanh toán...</p>
+                      </div>
+                    )}
+
+                    {b.status === "cancelled" && (
+                      <div className="mt-6 p-5 bg-gradient-to-r from-red-50 to-rose-50 rounded-2xl border-2 border-red-300 text-center">
+                        <XCircle className="w-12 h-12 mx-auto text-red-600 mb-2" />
+                        <p className="text-xl font-bold text-red-800">ĐÃ HỦY</p>
+                        <p className="text-sm text-red-700">Đơn đã bị hủy</p>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="mt-6 flex flex-wrap gap-3 justify-end">
+                      {canPay && (
+                        <Button onClick={() => navigate(`/payment/${b._id}`)} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold">
+                          <CreditCard className="mr-2" /> Thanh toán ngay
                         </Button>
                       )}
-
-                      {/* Hủy đơn */}
-                      {(b.status === "pending" || b.status === "confirmed") && (
-                        <Button
-                          variant="outline"
-                          onClick={() => cancelBooking(b._id)}
-                          className="border-red-300 text-red-600 hover:bg-red-50"
-                        >
-                          <X className="mr-2 h-4 w-4" /> Hủy đơn
+                      {b.status === "confirmed" && !isExpired && (
+                        <Button variant="outline" onClick={() => cancelBooking(b._id)} className="border-red-400 text-red-600 hover:bg-red-50">
+                          <X className="mr-2" /> Hủy đơn
                         </Button>
                       )}
-
-                      {/* XÓA ĐƠN: HIỆN KHI PENDING HOẶC CANCELLED */}
-                      {(b.status === "pending" || b.status === "cancelled") && (
-                        <Button
-                          variant="destructive"
-                          onClick={() => deleteBooking(b._id)}
-                          className="shadow-lg hover:shadow-xl"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {b.status === "cancelled" ? "Xóa vĩnh viễn" : "Xóa đơn"}
+                      {b.status === "cancelled" && (
+                        <Button variant="destructive" onClick={() => deleteBooking(b._id)}>
+                          <Trash2 className="mr-2" /> Xóa vĩnh viễn
                         </Button>
                       )}
                     </div>
                   </div>
 
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-400/10 to-purple-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-400/10 to-purple-400/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                 </Card>
               );
             })}
