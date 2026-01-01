@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Camera,
   MessageCircle,
+  X,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState, useEffect, useRef } from "react";
@@ -21,10 +22,11 @@ import { vi } from "date-fns/locale";
 const API_URL = "/api/posts";
 const BACKEND_URL = "http://localhost:5000";
 
-// 🔹 LOGO ĐÀ NẴNG TRAVEL
 import logo from "@/assets/logo.png";
 
-/* === XỬ LÝ ẢNH AN TOÀN GIỐNG NewsDetail === */
+import GoogleMapView from "@/components/maps/GoogleMapView";
+
+/* === XỬ LÝ ẢNH AN TOÀN=== */
 const getImageUrl = (imagePath?: string): string => {
   if (!imagePath) return "/placeholder.svg";
   if (imagePath.startsWith("data:")) return imagePath;
@@ -95,6 +97,10 @@ const DestinationDetail = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+ 
+  const REVIEWS_STEP = 3;
+  const [visibleReviews, setVisibleReviews] = useState(REVIEWS_STEP);
+
   const modalRef = useRef<HTMLDialogElement>(null);
   const modalImgRef = useRef<HTMLImageElement>(null);
 
@@ -102,6 +108,14 @@ const DestinationDetail = () => {
     if (modalImgRef.current) modalImgRef.current.src = src;
     modalRef.current?.showModal();
   };
+
+  // ✅ Map modal state (GIỐNG Cuisine)
+  const [openMap, setOpenMap] = useState(false);
+  const [mapQuery, setMapQuery] = useState("");
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
+    lat: 16.0544,
+    lng: 108.2022,
+  });
 
   useEffect(() => {
     const fetchDestination = async () => {
@@ -126,12 +140,13 @@ const DestinationDetail = () => {
               setUserReview(userRev);
               setNewReview({ rating: userRev.rating, content: userRev.content });
             }
-          } catch (err) {
-            console.log("Chưa có đánh giá");
+          } catch {
+            // ignore
           }
         }
 
         setDestination(data);
+        setVisibleReviews(REVIEWS_STEP);
       } catch (err: any) {
         toast({ title: "Lỗi", description: err.message, variant: "destructive" });
         navigate("/explore");
@@ -141,6 +156,26 @@ const DestinationDetail = () => {
     };
     fetchDestination();
   }, [id, navigate]);
+
+
+  const handleOpenMap = () => {
+    const query = `${destination?.title || ""} ${destination?.place || ""} Đà Nẵng`;
+    setMapQuery(query);
+    setOpenMap(true);
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setMapCenter({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => setMapCenter({ lat: 16.0544, lng: 108.2022 }),
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  };
 
   // GỬI / CẬP NHẬT ĐÁNH GIÁ
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -194,15 +229,14 @@ const DestinationDetail = () => {
         return {
           ...prev,
           reviews: exists
-            ? prev.reviews.map((r) =>
-                r._id === updatedReview._id ? updatedReview : r
-              )
+            ? prev.reviews.map((r) => (r._id === updatedReview._id ? updatedReview : r))
             : [updatedReview, ...prev.reviews],
           ratingAverage,
           ratingCount,
         };
       });
 
+      setVisibleReviews((v) => Math.max(v, REVIEWS_STEP));
       setIsEditing(false);
       toast({ title: "Thành công!", description: "Đánh giá đã được gửi!" });
     } catch (err: any) {
@@ -262,14 +296,10 @@ const DestinationDetail = () => {
   if (!destination) return null;
 
   const images =
-    destination.images?.map((img) =>
-      img.startsWith("http") ? img : `${BACKEND_URL}${img}`
-    ) || [];
-  const videoEmbed = destination.videoUrl
-    ? getYouTubeEmbed(destination.videoUrl)
-    : null;
+    destination.images?.map((img) => (img.startsWith("http") ? img : `${BACKEND_URL}${img}`)) || [];
+  const videoEmbed = destination.videoUrl ? getYouTubeEmbed(destination.videoUrl) : null;
 
-  /* === REVIEW CARD – GIỐNG NewsDetail / DishDetail === */
+  /* === REVIEW CARD  */
   const ReviewCard = ({ review, isUser }: { review: Review; isUser: boolean }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const displayName = review.user?.name || "Khách vãng lai";
@@ -289,9 +319,7 @@ const DestinationDetail = () => {
     return (
       <div
         className={`p-6 rounded-2xl border ${
-          isUser
-            ? "bg-indigo-50/80 border-indigo-300"
-            : "bg-white border-gray-200"
+          isUser ? "bg-indigo-50/80 border-indigo-300" : "bg-white border-gray-200"
         } shadow-sm hover:shadow-md transition`}
       >
         <div className="flex gap-5">
@@ -315,9 +343,7 @@ const DestinationDetail = () => {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span
-                    className={`font-bold text-lg ${
-                      isUser ? "text-indigo-700" : "text-gray-900"
-                    }`}
+                    className={`font-bold text-lg ${isUser ? "text-indigo-700" : "text-gray-900"}`}
                   >
                     {displayName}
                   </span>
@@ -333,20 +359,14 @@ const DestinationDetail = () => {
                       <Star
                         key={i}
                         className={`w-4 h-4 ${
-                          i < review.rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300"
+                          i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
                         }`}
                       />
                     ))}
                   </div>
-                  <span className="font-medium text-indigo-600">
-                    {timeAgo(review.createdAt)}
-                  </span>
+                  <span className="font-medium text-indigo-600">{timeAgo(review.createdAt)}</span>
                   <span className="text-gray-400">•</span>
-                  <span className="text-gray-500">
-                    {formatDate(review.createdAt)}
-                  </span>
+                  <span className="text-gray-500">{formatDate(review.createdAt)}</span>
                 </div>
               </div>
 
@@ -390,7 +410,7 @@ const DestinationDetail = () => {
 
             <p className="mt-4 text-gray-700 leading-relaxed">{review.content}</p>
 
-            {/* PHẢN HỒI TỪ ĐÀ NẴNG TRAVEL – giống NewsDetail / DishDetail */}
+            {/* PHẢN HỒI TỪ ĐÀ NẴNG TRAVEL */}
             {review.reply && (
               <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                 <div className="flex gap-4">
@@ -402,16 +422,9 @@ const DestinationDetail = () => {
                     />
                   </div>
                   <div className="flex-1">
-                    {/* ✅ Chỉ 1 lần chữ Đà Nẵng Travel */}
-                    <div className="font-bold text-emerald-800 mb-1">
-                      Đà Nẵng Travel
-                    </div>
-                    <p className="text-gray-800 leading-relaxed">
-                      {review.reply.content}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">
-                      {timeAgo(review.reply.repliedAt)}
-                    </p>
+                    <div className="font-bold text-emerald-800 mb-1">Đà Nẵng Travel</div>
+                    <p className="text-gray-800 leading-relaxed">{review.reply.content}</p>
+                    <p className="text-xs text-gray-500 mt-2">{timeAgo(review.reply.repliedAt)}</p>
                   </div>
                 </div>
               </div>
@@ -422,18 +435,56 @@ const DestinationDetail = () => {
     );
   };
 
+  const totalReviews = destination.reviews.length;
+  const shownReviews = destination.reviews.slice(0, visibleReviews);
+  const canShowMore = visibleReviews < totalReviews;
+  const canCollapse = totalReviews > REVIEWS_STEP && visibleReviews > REVIEWS_STEP;
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
+      {openMap && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <p className="font-bold text-lg">Bản đồ</p>
+                <p className="text-sm text-muted-foreground line-clamp-1"></p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    window.open(
+                      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        mapQuery
+                      )}`,
+                      "_blank"
+                    );
+                  }}
+                >
+                  Mở Google Maps
+                </Button>
+
+                <Button variant="ghost" size="icon" onClick={() => setOpenMap(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <GoogleMapView lat={mapCenter.lat} lng={mapCenter.lng} zoom={13} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HERO */}
       <section className="relative h-[75vh] w-full">
         {images[0] ? (
-          <img
-            src={images[0]}
-            alt={destination.title}
-            className="w-full h-full object-cover"
-          />
+          <img src={images[0]} alt={destination.title} className="w-full h-full object-cover" />
         ) : (
           <div className="bg-gradient-to-br from-blue-600 to-teal-700 w-full h-full" />
         )}
@@ -445,9 +496,7 @@ const DestinationDetail = () => {
             <div className="flex items-center gap-1">
               <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
               <span>
-                {destination.ratingAverage > 0
-                  ? destination.ratingAverage.toFixed(1)
-                  : "Chưa có"}{" "}
+                {destination.ratingAverage > 0 ? destination.ratingAverage.toFixed(1) : "Chưa có"}{" "}
                 {destination.ratingCount > 0 && `(${destination.ratingCount})`}
               </span>
             </div>
@@ -484,12 +533,7 @@ const DestinationDetail = () => {
                   onClick={() => modalRef.current?.close()}
                   className="absolute top-4 right-4 text-white bg-black/60 hover:bg-black/80 rounded-full p-3 transition"
                 >
-                  <svg
-                    className="w-8 h-8"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -504,10 +548,7 @@ const DestinationDetail = () => {
             <div className="relative overflow-hidden rounded-2xl shadow-lg">
               <div
                 className="flex gap-5 animate-marquee hover:[animation-play-state:paused]"
-                style={{
-                  width: "max-content",
-                  animation: "marquee 35s linear infinite",
-                }}
+                style={{ width: "max-content", animation: "marquee 35s linear infinite" }}
               >
                 {[...images, ...images].map((img, idx) => (
                   <button
@@ -550,10 +591,7 @@ const DestinationDetail = () => {
         {videoEmbed && (
           <section className="rounded-2xl overflow-hidden shadow-md">
             <h2 className="text-3xl font-bold mb-4">Video giới thiệu</h2>
-            <div
-              className="w-full rounded-xl overflow-hidden bg-black"
-              style={{ aspectRatio: "16 / 9" }}
-            >
+            <div className="w-full rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "16 / 9" }}>
               <iframe
                 src={`${videoEmbed}?rel=0&modestbranding=1`}
                 title="Video"
@@ -592,9 +630,7 @@ const DestinationDetail = () => {
             <div className="mt-6">
               <TabsContent value="overview">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-xl font-semibold mb-3 text-indigo-600">
-                    Giới thiệu tổng quan
-                  </h3>
+                  <h3 className="text-xl font-semibold mb-3 text-indigo-600">Giới thiệu tổng quan</h3>
                   <p className="text-gray-700 text-justify whitespace-pre-line leading-relaxed">
                     {destination.overview || "Chưa có thông tin tổng quan."}
                   </p>
@@ -602,9 +638,7 @@ const DestinationDetail = () => {
               </TabsContent>
               <TabsContent value="history">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-xl font-semibold mb-3 text-teal-600">
-                    Lịch sử
-                  </h3>
+                  <h3 className="text-xl font-semibold mb-3 text-teal-600">Lịch sử</h3>
                   <p className="text-gray-700 text-justify whitespace-pre-line leading-relaxed">
                     {destination.history || "Chưa có thông tin lịch sử."}
                   </p>
@@ -612,9 +646,7 @@ const DestinationDetail = () => {
               </TabsContent>
               <TabsContent value="tips">
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-xl font-semibold mb-3 text-amber-600">
-                    Lưu ý khi tham quan
-                  </h3>
+                  <h3 className="text-xl font-semibold mb-3 text-amber-600">Lưu ý khi tham quan</h3>
                   <p className="text-gray-700 whitespace-pre-line leading-relaxed">
                     {destination.notes ||
                       "• Mang theo nước uống và kem chống nắng\n• Mặc đồ thoải mái, giày thể thao\n• Kiểm tra thời tiết trước khi đi"}
@@ -631,11 +663,7 @@ const DestinationDetail = () => {
             <h2 className="text-3xl font-bold mb-6">Điểm nổi bật</h2>
             <div className="flex flex-wrap gap-3">
               {destination.highlights.map((h, idx) => (
-                <Badge
-                  key={idx}
-                  variant="secondary"
-                  className="text-sm px-4 py-2 rounded-full shadow-sm"
-                >
+                <Badge key={idx} variant="secondary" className="text-sm px-4 py-2 rounded-full shadow-sm">
                   {h}
                 </Badge>
               ))}
@@ -644,10 +672,7 @@ const DestinationDetail = () => {
         )}
 
         {/* ĐÁNH GIÁ & BÌNH LUẬN */}
-        <section
-          id="reviews-section"
-          className="bg-white rounded-3xl shadow-xl p-8 border"
-        >
+        <section id="reviews-section" className="bg-white rounded-3xl shadow-xl p-8 border">
           <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
             <MessageCircle className="w-8 h-8 text-indigo-600" />
             Đánh giá & Bình luận
@@ -655,25 +680,16 @@ const DestinationDetail = () => {
 
           {/* Form đánh giá */}
           {(!userReview || isEditing) && (
-            <form
-              onSubmit={handleReviewSubmit}
-              className="mb-10 pb-10 border-b-2"
-            >
+            <form onSubmit={handleReviewSubmit} className="mb-10 pb-10 border-b-2">
               <div className="mb-6">
-                <p className="font-medium mb-3 text-lg">
-                  Chọn số sao của bạn
-                </p>
+                <p className="font-medium mb-3 text-lg">Chọn số sao của bạn</p>
                 <div className="flex gap-3">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
-                      onClick={() =>
-                        setNewReview({ ...newReview, rating: star })
-                      }
+                      onClick={() => setNewReview({ ...newReview, rating: star })}
                       className={`w-12 h-12 cursor-pointer transition hover:scale-110 ${
-                        star <= newReview.rating
-                          ? "text-yellow-400 fill-yellow-400"
-                          : "text-gray-300"
+                        star <= newReview.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
                       }`}
                     />
                   ))}
@@ -685,9 +701,7 @@ const DestinationDetail = () => {
                 className="w-full p-5 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 focus:outline-none resize-none text-base"
                 rows={6}
                 value={newReview.content}
-                onChange={(e) =>
-                  setNewReview({ ...newReview, content: e.target.value })
-                }
+                onChange={(e) => setNewReview({ ...newReview, content: e.target.value })}
               />
 
               <div className="flex gap-4 mt-6">
@@ -697,11 +711,7 @@ const DestinationDetail = () => {
                   disabled={submitting}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-8"
                 >
-                  {submitting
-                    ? "Đang gửi..."
-                    : isEditing
-                    ? "Cập nhật đánh giá"
-                    : "Gửi đánh giá"}
+                  {submitting ? "Đang gửi..." : isEditing ? "Cập nhật đánh giá" : "Gửi đánh giá"}
                 </Button>
                 {isEditing && userReview && (
                   <Button
@@ -710,10 +720,7 @@ const DestinationDetail = () => {
                     variant="outline"
                     onClick={() => {
                       setIsEditing(false);
-                      setNewReview({
-                        rating: userReview.rating,
-                        content: userReview.content,
-                      });
+                      setNewReview({ rating: userReview.rating, content: userReview.content });
                     }}
                   >
                     Hủy
@@ -725,21 +732,38 @@ const DestinationDetail = () => {
 
           {/* Danh sách đánh giá */}
           <div className="space-y-8">
-            {destination.reviews.length === 0 ? (
+            {totalReviews === 0 ? (
               <div className="text-center py-20 text-gray-500 italic text-lg">
                 Chưa có đánh giá nào. Hãy là người đầu tiên chia sẻ trải nghiệm!
               </div>
             ) : (
-              destination.reviews.map((review) => {
-                const isUserReview = userReview?._id === review._id;
-                return (
-                  <ReviewCard
-                    key={review._id}
-                    review={review}
-                    isUser={isUserReview}
-                  />
-                );
-              })
+              <>
+                {shownReviews.map((review) => {
+                  const isUserReview = userReview?._id === review._id;
+                  return <ReviewCard key={review._id} review={review} isUser={isUserReview} />;
+                })}
+
+                {(canShowMore || canCollapse) && (
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    {canShowMore && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setVisibleReviews((v) => Math.min(v + REVIEWS_STEP, totalReviews))
+                        }
+                      >
+                        Xem thêm ({Math.min(REVIEWS_STEP, totalReviews - visibleReviews)})
+                      </Button>
+                    )}
+
+                    {canCollapse && (
+                      <Button variant="ghost" onClick={() => setVisibleReviews(REVIEWS_STEP)}>
+                        Thu gọn
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -749,20 +773,11 @@ const DestinationDetail = () => {
           <Button
             variant="secondary"
             className="flex-1 flex items-center justify-center gap-2 text-lg py-4 rounded-xl shadow"
-            onClick={() => {
-              const query = `${destination.title}, ${
-                destination.place || ""
-              }, Đà Nẵng`;
-              window.open(
-                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  query
-                )}`,
-                "_blank"
-              );
-            }}
+            onClick={handleOpenMap} 
           >
             <MapPin className="h-5 w-5" /> Xem vị trí
           </Button>
+
           <Button
             variant="outline"
             className="flex-1 flex items-center justify-center gap-2 text-lg py-4 rounded-xl shadow"
@@ -774,7 +789,7 @@ const DestinationDetail = () => {
       </main>
 
       <Footer />
-    </div>  
+    </div>
   );
 };
 

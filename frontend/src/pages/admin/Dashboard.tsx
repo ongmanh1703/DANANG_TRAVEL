@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -11,13 +11,11 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users,
-  MapPin,
   Compass,
   Calendar,
   TrendingUp,
@@ -58,7 +56,6 @@ export default function Dashboard() {
 
   const token = localStorage.getItem("token");
 
-  // Helper fetch với auth
   const fetchWithAuth = async (url: string) => {
     const res = await fetch(`${API_BASE}${url}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -67,8 +64,9 @@ export default function Dashboard() {
     return res.json();
   };
 
-  // CHỈ TÍNH ĐƠN ĐÃ THANH TOÁN (paid hoặc paid_pending)
-  const isPaid = (status: string) => status === "paid" || status === "paid_pending";
+  // Chỉ tính đơn đã thanh toán
+  const isPaid = (status: string) =>
+    status === "paid" || status === "paid_pending";
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -87,7 +85,6 @@ export default function Dashboard() {
           fetchWithAuth("/reviews/all"),
         ]);
 
-        // Thống kê cơ bản (giữ nguyên như cũ)
         const totalUsers = users.users?.length || 0;
         const totalTours = tours.length || 0;
         const totalBookings = bookings.length || 0;
@@ -97,11 +94,14 @@ export default function Dashboard() {
         const thisMonthStart = startOfMonth(now);
         const lastMonthStart = startOfMonth(subMonths(now, 1));
 
-        // DOANH THU THỰC TẾ – CHỈ TÍNH ĐƠN ĐÃ THANH TOÁN
+        // ==========================
+        //    DOANH THU CHÍNH XÁC
+        // ==========================
         const revenueThisMonth = bookings
           .filter(
             (b: any) =>
-              isPaid(b.status) && new Date(b.bookingDate) >= thisMonthStart
+              isPaid(b.status) &&
+              new Date(b.createdAt) >= thisMonthStart
           )
           .reduce(
             (sum: number, b: any) => sum + (b.tour?.price || 0) * b.people,
@@ -112,8 +112,8 @@ export default function Dashboard() {
           .filter(
             (b: any) =>
               isPaid(b.status) &&
-              new Date(b.bookingDate) >= lastMonthStart &&
-              new Date(b.bookingDate) < thisMonthStart
+              new Date(b.createdAt) >= lastMonthStart &&
+              new Date(b.createdAt) < thisMonthStart
           )
           .reduce(
             (sum: number, b: any) => sum + (b.tour?.price || 0) * b.people,
@@ -124,6 +124,7 @@ export default function Dashboard() {
           users.users?.filter(
             (u: any) => new Date(u.createdAt) >= thisMonthStart
           ).length || 0;
+
         const newUsersLastMonth =
           users.users?.filter(
             (u: any) =>
@@ -142,13 +143,16 @@ export default function Dashboard() {
           newUsersLastMonth,
         });
 
-        // Biểu đồ doanh thu 7 tháng – CHỈ TÍNH ĐƠN ĐÃ THANH TOÁN
+        // ==========================
+        //      DOANH THU 7 THÁNG
+        // ==========================
         const last7Months = Array.from({ length: 7 }, (_, i) => {
           const date = subMonths(now, 6 - i);
           return {
             month: format(date, "MMM"),
             start: startOfMonth(date),
-            end: i === 6 ? now : startOfMonth(subMonths(now, 5 - i)),
+            end:
+              i === 6 ? now : startOfMonth(subMonths(now, 5 - i)),
           };
         });
 
@@ -158,27 +162,36 @@ export default function Dashboard() {
             .filter(
               (b: any) =>
                 isPaid(b.status) &&
-                new Date(b.bookingDate) >= start &&
-                new Date(b.bookingDate) < end
+                new Date(b.createdAt) >= start &&
+                new Date(b.createdAt) < end
             )
             .reduce(
-              (sum: number, b: any) => sum + (b.tour?.price || 0) * b.people,
+              (sum: number, b: any) =>
+                sum + (b.tour?.price || 0) * b.people,
               0
             ),
         }));
+
         setMonthlyRevenue(revenueData);
 
-        // Các phần còn lại giữ nguyên 100% như file gốc
+        // ==========================
+        //   TĂNG TRƯỞNG NGƯỜI DÙNG
+        // ==========================
         const userGrowthData = last7Months.map(({ month, start, end }) => ({
           month,
           users:
             users.users?.filter(
               (u: any) =>
-                new Date(u.createdAt) >= start && new Date(u.createdAt) < end
+                new Date(u.createdAt) >= start &&
+                new Date(u.createdAt) < end
             ).length || 0,
         }));
+
         setMonthlyUsers(userGrowthData);
 
+        // ==========================
+        //  PHÂN BỐ TOUR
+        // ==========================
         const categoryCount: Record<string, number> = {};
         tours.forEach((t: any) => {
           const key = t.category || t.departure || "Khác";
@@ -193,15 +206,22 @@ export default function Dashboard() {
         if (distribution.length < 5) {
           distribution.push({
             name: "Khác",
-            value: totalTours - distribution.reduce((s, i) => s + i.value, 0),
+            value:
+              totalTours -
+              distribution.reduce((s, i) => s + i.value, 0),
           });
         }
+
         setTourDistribution(distribution);
 
+        // ==========================
+        //      HOẠT ĐỘNG GẦN ĐÂY
+        // ==========================
         const recent = bookings
           .sort(
             (a: any, b: any) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              new Date(b.createdAt).getTime() -
+              new Date(a.createdAt).getTime()
           )
           .slice(0, 10)
           .map((b: any) => ({
@@ -210,6 +230,7 @@ export default function Dashboard() {
             tour: b.tour?.title || "Không rõ",
             time: new Date(b.createdAt).toLocaleString("vi-VN"),
           }));
+
         setRecentActivities(recent);
       } catch (err) {
         console.error(err);
@@ -222,8 +243,9 @@ export default function Dashboard() {
   }, [token]);
 
   const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("vi-VN", { maximumSignificantDigits: 3 }).format(n) +
-    "đ";
+    new Intl.NumberFormat("vi-VN", {
+      maximumSignificantDigits: 3,
+    }).format(n) + "đ";
 
   const pieColors = [
     "#3b82f6",
@@ -234,6 +256,7 @@ export default function Dashboard() {
     "#06b6d4",
   ];
 
+  // STAT CARDS
   const statCards = [
     {
       title: "Tổng người dùng",
@@ -265,13 +288,12 @@ export default function Dashboard() {
     },
   ];
 
-  if (loading) {
+  if (loading)
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-xl">Đang tải dashboard...</div>
       </div>
     );
-  }
 
   return (
     <div className="space-y-6 p-6">
@@ -310,7 +332,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Doanh thu & Người dùng */}
+      {/* Revenue & Users */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -335,6 +357,7 @@ export default function Dashboard() {
                 />
               </LineChart>
             </ResponsiveContainer>
+
             <div className="mt-4 text-right">
               <p className="text-sm text-muted-foreground">
                 Tháng này:{" "}
@@ -352,7 +375,9 @@ export default function Dashboard() {
                     {" "}
                     (
                     {(
-                      (stats.revenueThisMonth / stats.revenueLastMonth - 1) *
+                      (stats.revenueThisMonth /
+                        stats.revenueLastMonth -
+                        1) *
                       100
                     ).toFixed(0)}
                     %)
@@ -374,14 +399,18 @@ export default function Dashboard() {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="users" fill="#10b981" radius={[5, 5, 0, 0]} />
+                <Bar
+                  dataKey="users"
+                  fill="#10b981"
+                  radius={[5, 5, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Phân bố tour & Hoạt động gần đây */}
+      {/* Pie + Recent Activities */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -395,10 +424,15 @@ export default function Dashboard() {
                   dataKey="value"
                   nameKey="name"
                   outerRadius={80}
-                  label={({ name, value }) => `${name}: ${value}`}
+                  label={({ name, value }) =>
+                    `${name}: ${value}`
+                  }
                 >
                   {tourDistribution.map((_, i) => (
-                    <Cell key={i} fill={pieColors[i % pieColors.length]} />
+                    <Cell
+                      key={i}
+                      fill={pieColors[i % pieColors.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -419,11 +453,15 @@ export default function Dashboard() {
                 </p>
               ) : (
                 recentActivities.map((act) => (
-                  <div key={act.id} className="flex items-center gap-4">
+                  <div
+                    key={act.id}
+                    className="flex items-center gap-4"
+                  >
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
                     <div className="flex-1">
                       <p className="text-sm font-medium">
-                        {act.name} đặt tour <strong>{act.tour}</strong>
+                        {act.name} đặt tour{" "}
+                        <strong>{act.tour}</strong>
                       </p>
                       <p className="text-xs text-muted-foreground">
                         #{act.id} • {act.time}

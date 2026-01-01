@@ -1,3 +1,4 @@
+// backend/controllers/bookingController.js
 const Booking = require('../models/Booking');
 const User = require('../models/User');
 const mongoose = require('mongoose');
@@ -12,7 +13,7 @@ exports.getUserBookings = async (req, res) => {
       .sort({ createdAt: -1 });
     res.json(bookings);
   } catch (err) {
-    console.error("Error fetching user bookings:", err);
+    console.error('Error fetching user bookings:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -30,7 +31,7 @@ exports.getAllBookings = async (req, res) => {
       .sort({ createdAt: -1 });
     res.json(bookings);
   } catch (err) {
-    console.error("Error fetching all bookings:", err);
+    console.error('Error fetching all bookings:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -38,16 +39,17 @@ exports.getAllBookings = async (req, res) => {
 // ==================== TẠO ĐƠN ====================
 exports.createBooking = async (req, res) => {
   try {
-    const { tour, bookingDate, people, note, name, phone, paymentProof, email } = req.body;
+    const { tour, bookingDate, people, note, name, phone, paymentProof, email } =
+      req.body;
 
     if (!tour || !bookingDate || !people || !name || !phone) {
-      return res.status(400).json({ message: "Thiếu thông tin đặt tour!" });
+      return res.status(400).json({ message: 'Thiếu thông tin đặt tour!' });
     }
 
     let bookingEmail = email;
     if (!bookingEmail) {
       const userDoc = await User.findById(req.user.id).select('email');
-      bookingEmail = userDoc?.email || "";
+      bookingEmail = userDoc?.email || '';
     }
 
     const newBooking = new Booking({
@@ -72,12 +74,12 @@ exports.createBooking = async (req, res) => {
       .populate('user', 'name email');
 
     res.status(201).json({
-      message: "Đặt tour thành công! Vui lòng thanh toán trong 10 phút để giữ chỗ.",
-      booking: populatedBooking
+      message: 'Đặt tour thành công! Vui lòng thanh toán trong 10 phút để giữ chỗ.',
+      booking: populatedBooking,
     });
   } catch (err) {
-    console.error("Booking create error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error('Booking create error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
@@ -100,7 +102,9 @@ exports.markAsPaidPending = async (req, res) => {
     }
 
     if (booking.status !== 'confirmed') {
-      return res.status(400).json({ message: 'Đơn không ở trạng thái chờ thanh toán' });
+      return res
+        .status(400)
+        .json({ message: 'Đơn không ở trạng thái chờ thanh toán' });
     }
 
     const updated = await Booking.findByIdAndUpdate(
@@ -112,8 +116,8 @@ exports.markAsPaidPending = async (req, res) => {
       .populate('user', 'name email');
 
     res.json({
-      message: "Thanh toán thành công! Đơn đang chờ admin xác nhận.",
-      booking: updated
+      message: 'Thanh toán thành công! Đơn đang chờ admin xác nhận.',
+      booking: updated,
     });
   } catch (err) {
     console.error('markAsPaidPending error:', err);
@@ -127,7 +131,9 @@ exports.confirmPayment = async (req, res) => {
     const { id } = req.params;
 
     if (!['admin', 'staff'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Chỉ admin hoặc staff được xác nhận thanh toán!' });
+      return res
+        .status(403)
+        .json({ message: 'Chỉ admin hoặc staff được xác nhận thanh toán!' });
     }
 
     if (!mongoose.isValidObjectId(id)) {
@@ -140,7 +146,9 @@ exports.confirmPayment = async (req, res) => {
     }
 
     if (booking.status !== 'paid_pending') {
-      return res.status(400).json({ message: 'Đơn không ở trạng thái chờ duyệt thanh toán' });
+      return res
+        .status(400)
+        .json({ message: 'Đơn không ở trạng thái chờ duyệt thanh toán' });
     }
 
     const updated = await Booking.findByIdAndUpdate(
@@ -152,8 +160,8 @@ exports.confirmPayment = async (req, res) => {
       .populate('user', 'name email');
 
     res.json({
-      message: "Đã xác nhận thanh toán thành công!",
-      booking: updated
+      message: 'Đã xác nhận thanh toán thành công!',
+      booking: updated,
     });
   } catch (err) {
     console.error('confirmPayment error:', err);
@@ -194,8 +202,8 @@ exports.cancelBooking = async (req, res) => {
     await User.findByIdAndUpdate(booking.user, { $inc: { totalBookings: -1 } });
 
     res.json({
-      message: "Đơn đã được hủy thành công",
-      booking: updated
+      message: 'Đơn đã được hủy thành công',
+      booking: updated,
     });
   } catch (err) {
     console.error('cancelBooking error:', err);
@@ -248,9 +256,17 @@ exports.updateBooking = async (req, res) => {
       return res.status(400).json({ message: 'Invalid booking ID' });
     }
 
-    const allowedUpdates = ['bookingDate', 'people', 'note', 'name', 'phone', 'email', 'paymentProof'];
+    const allowedUpdates = [
+      'bookingDate',
+      'people',
+      'note',
+      'name',
+      'phone',
+      'email',
+      'paymentProof',
+    ];
     const updateData = {};
-    allowedUpdates.forEach(field => {
+    allowedUpdates.forEach((field) => {
       if (updates[field] !== undefined) updateData[field] = updates[field];
     });
 
@@ -277,7 +293,9 @@ exports.sendInvoice = async (req, res) => {
     const { id } = req.params;
 
     if (!req.user || !['admin', 'staff'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Chỉ admin hoặc staff được phép gửi hóa đơn!' });
+      return res
+        .status(403)
+        .json({ message: 'Chỉ admin hoặc staff được phép gửi hóa đơn!' });
     }
 
     if (!mongoose.isValidObjectId(id)) {
@@ -294,11 +312,15 @@ exports.sendInvoice = async (req, res) => {
 
     const customerEmail = booking.email || (booking.user && booking.user.email);
     if (!customerEmail) {
-      return res.status(400).json({ message: 'Không có email liên hệ, không thể gửi hóa đơn' });
+      return res
+        .status(400)
+        .json({ message: 'Không có email liên hệ, không thể gửi hóa đơn' });
     }
 
     if (booking.status !== 'paid') {
-      return res.status(400).json({ message: 'Chỉ gửi hóa đơn cho đơn đã thanh toán (paid)' });
+      return res
+        .status(400)
+        .json({ message: 'Chỉ gửi hóa đơn cho đơn đã thanh toán (paid)' });
     }
 
     const total =
@@ -306,9 +328,24 @@ exports.sendInvoice = async (req, res) => {
       (booking.people || 0);
 
     const departDate = new Date(booking.bookingDate).toLocaleDateString('vi-VN');
+
+    // ✅ Ưu tiên dùng paidAt nếu có, fallback hiện tại
     const paidAt = booking.paidAt
       ? new Date(booking.paidAt).toLocaleString('vi-VN')
       : new Date().toLocaleString('vi-VN');
+
+    // ✅ FIX "ngày ngày": format duration thông minh
+    const formatDuration = (tour) => {
+      const raw = tour?.duration ?? tour?.days ?? tour?.durationDays ?? 1;
+
+      if (typeof raw === 'number') return `${raw} ngày`;
+
+      const s = String(raw).trim();
+      if (/(ngày|đêm)/i.test(s)) return s;
+
+      return `${s} ngày`;
+    };
+    const durationText = formatDuration(booking.tour);
 
     const subject = `Hóa đơn tour #${booking._id.toString().slice(-6).toUpperCase()} - Danang Travel`;
 
@@ -323,7 +360,7 @@ exports.sendInvoice = async (req, res) => {
           <li><strong>Mã đơn:</strong> #${booking._id.toString().slice(-6).toUpperCase()}</li>
           <li><strong>Tên tour:</strong> ${booking.tour?.title || 'Tour du lịch'}</li>
           <li><strong>Ngày khởi hành:</strong> ${departDate}</li>
-          <li><strong>Số ngày:</strong> ${booking.tour?.duration || booking.tour?.days || booking.tour?.durationDays || 1} ngày</li>
+          <li><strong>Số ngày:</strong> ${durationText}</li>
           <li><strong>Số khách:</strong> ${booking.people} người</li>
         </ul>
 
@@ -336,8 +373,7 @@ exports.sendInvoice = async (req, res) => {
 
         ${booking.note ? `<p><strong>Ghi chú của khách:</strong> ${booking.note}</p>` : ''}
 
-        <p>Nếu có bất kỳ thắc mắc nào về lịch trình, thời gian đón, hoặc dịch vụ đi kèm, bạn có thể trả lời trực tiếp email này hoặc liên hệ hotline <strong>0123 456 789</strong>.</p>
-
+        <p>Nếu có bất kỳ thắc mắc nào về lịch trình, thời gian đón, hoặc dịch vụ đi kèm, bạn có thể trả lời trực tiếp email này hoặc liên hệ hotline <strong>079 8283 079</strong>.</p>
         <p>Chúc bạn có một chuyến đi thật nhiều trải nghiệm và kỷ niệm đẹp cùng Danang Travel! 🌊🏖️</p>
 
         <hr style="margin-top:30px; border:none; border-top:1px solid #e5e7eb;" />

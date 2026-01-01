@@ -154,21 +154,37 @@ const Tours = () => {
 
       <main>
         {/* Hero Section */}
-        <section className="relative h-[70vh] flex items-center justify-center overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-secondary/90 to-primary/90 z-10" />
-          <div className="absolute inset-0">
-            <div className="w-full h-full bg-gradient-to-br from-blue-600 to-teal-600" />
-          </div>
-          <div className="relative z-20 text-center text-white px-4">
-            <Badge className="mb-4 bg-white/20 text-white border-white/30">Tour du lịch</Badge>
-            <h1 className="text-5xl md:text-6xl font-bold mb-6">
-              Tour được yêu thích
-            </h1>
-            <p className="text-xl max-w-2xl mx-auto">
-              Khám phá Đà Nẵng với những tour du lịch hấp dẫn và giá tốt nhất
-            </p>
-          </div>
-        </section>
+<section className="relative h-[70vh] flex items-center justify-center overflow-hidden">
+  <div className="absolute inset-0 bg-gradient-to-r from-secondary/90 to-primary/90 z-10" />
+
+  <div className="absolute inset-0">
+    {tours[0]?.image ? (
+      <img
+        src={
+          tours[0].image.startsWith("http")
+            ? tours[0].image
+            : `${API_URL}${tours[0].image}`
+        }
+        alt="Tour nổi bật"
+        className="w-full h-full object-cover"
+      />
+    ) : (
+      <div className="w-full h-full bg-gradient-to-br from-blue-600 to-teal-600" />
+    )}
+  </div>
+
+  <div className="relative z-20 text-center text-white px-4">
+    <Badge className="mb-4 bg-white/20 text-white border-white/30">
+      Tour du lịch
+    </Badge>
+    <h1 className="text-5xl md:text-6xl font-bold mb-6">
+      Tour được yêu thích
+    </h1>
+    <p className="text-xl max-w-2xl mx-auto">
+      Khám phá Đà Nẵng với những tour du lịch hấp dẫn và giá tốt nhất
+    </p>
+  </div>
+</section>
 
         {/* Search & Filter */}
         <section className="py-6 bg-muted/20">

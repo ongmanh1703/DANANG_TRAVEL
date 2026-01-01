@@ -1,23 +1,13 @@
 // src/pages/staff/StaffTours.tsx
 import { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus,
   Search,
@@ -36,12 +26,12 @@ import { toast } from "@/components/ui/use-toast";
 
 const API_BASE = "http://localhost:5000/api/tours";
 
-const callAPI = async (url: string, options = {}) => {
+const callAPI = async (url: string, options: any = {}) => {
   const token = localStorage.getItem("token");
   const headers: any = {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+    ...(options.headers || {}),
   };
 
   const res = await fetch(url, { ...options, headers });
@@ -72,7 +62,8 @@ const StaffTours = () => {
     departure: "",
     category: "",
     includes: [] as string[],
-    status: "draft",
+    // ✅ CHANGE: staff cũng không có nháp -> luôn published
+    status: "published",
     description: "",
   });
 
@@ -110,7 +101,8 @@ const StaffTours = () => {
         departure: tour.departure || "",
         category: tour.category || "",
         includes: tour.includes || [],
-        status: tour.status || "draft",
+        // ✅ CHANGE: luôn published (giống admin)
+        status: "published",
         description: tour.description || "",
       });
       setPreview(tour.image ? `http://localhost:5000${tour.image}` : "");
@@ -126,7 +118,8 @@ const StaffTours = () => {
         departure: "",
         category: "",
         includes: [],
-        status: "draft",
+        // ✅ CHANGE: luôn published (giống admin)
+        status: "published",
         description: "",
       });
       setPreview("");
@@ -169,12 +162,13 @@ const StaffTours = () => {
     formDataUpload.append("departure", formData.departure || "");
     formDataUpload.append("category", formData.category || "");
     formDataUpload.append("includes", JSON.stringify(formData.includes));
-    formDataUpload.append("status", formData.status);
+
+    // ✅ CHANGE: luôn gửi published
+    formDataUpload.append("status", "published");
+
     formDataUpload.append("description", formData.description);
 
-    const fileInput = document.querySelector(
-      'input[type="file"]'
-    ) as HTMLInputElement;
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     if (fileInput?.files?.[0]) {
       formDataUpload.append("image", fileInput.files[0]);
     } else if (formData.image) {
@@ -195,19 +189,16 @@ const StaffTours = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Lỗi khi lưu tour");
 
-      data.image = data.image.startsWith("http")
-        ? data.image
-        : `http://localhost:5000${data.image}`;
+      data.image = data.image.startsWith("http") ? data.image : `http://localhost:5000${data.image}`;
 
       if (editingTour) {
-        setTours((prev) =>
-          prev.map((t) => (t._id === editingTour._id ? data : t))
-        );
+        setTours((prev) => prev.map((t) => (t._id === editingTour._id ? data : t)));
         toast({ title: "Cập nhật thành công!" });
       } else {
         setTours((prev) => [...prev, data]);
         toast({ title: "Thêm tour thành công!" });
       }
+
       setOpenDialog(false);
       setEditingTour(null);
       setPreview("");
@@ -221,12 +212,8 @@ const StaffTours = () => {
       {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Quản lý Tours (Nhân viên)
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Tạo, chỉnh sửa và quản lý tour du lịch
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Quản lý Tours (Nhân viên)</h1>
+          <p className="text-gray-600 mt-1">Tạo, chỉnh sửa và quản lý tour du lịch</p>
         </div>
         <Button onClick={() => openForm()} className="shadow-lg">
           <Plus className="mr-2 h-4 w-4" />
@@ -258,9 +245,7 @@ const StaffTours = () => {
             <div className="py-12 text-center">
               <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
               <p className="mt-3 text-gray-600">
-                {searchTerm
-                  ? "Không tìm thấy tour nào."
-                  : "Chưa có tour nào được tạo."}
+                {searchTerm ? "Không tìm thấy tour nào." : "Chưa có tour nào được tạo."}
               </p>
             </div>
           ) : (
@@ -282,20 +267,15 @@ const StaffTours = () => {
                         <Tag className="h-16 w-16 text-white opacity-70" />
                       </div>
                     )}
-                    <Badge
-                      className="absolute top-3 right-3 shadow-md"
-                      variant={
-                        tour.status === "published" ? "default" : "secondary"
-                      }
-                    >
-                      {tour.status === "published" ? "Đã xuất bản" : "Nháp"}
+
+                    {/* ✅ CHANGE: luôn hiển thị Đã xuất bản */}
+                    <Badge className="absolute top-3 right-3 shadow-md" variant="default">
+                      Đã xuất bản
                     </Badge>
                   </div>
 
                   <CardContent className="p-4 space-y-3">
-                    <h3 className="font-semibold text-lg line-clamp-1 text-gray-900">
-                      {tour.title}
-                    </h3>
+                    <h3 className="font-semibold text-lg line-clamp-1 text-gray-900">{tour.title}</h3>
 
                     <div className="space-y-1.5 text-sm text-gray-600">
                       <p className="flex items-center gap-1.5">
@@ -318,9 +298,7 @@ const StaffTours = () => {
 
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xl font-bold text-blue-700">
-                          {Number(tour.price).toLocaleString()} ₫
-                        </p>
+                        <p className="text-xl font-bold text-blue-700">{Number(tour.price).toLocaleString()} ₫</p>
                         {tour.originalPrice > tour.price && (
                           <p className="text-xs line-through text-gray-500">
                             {Number(tour.originalPrice).toLocaleString()} ₫
@@ -358,15 +336,10 @@ const StaffTours = () => {
                     )}
 
                     <div className="flex gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => openForm(tour)}
-                      >
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => openForm(tour)}>
                         <Edit className="h-3.5 w-3.5" />
                       </Button>
-                      {/* Nhân viên KHÔNG có nút xoá tour */}
+                      {/* ✅ Nhân viên KHÔNG có nút xoá tour */}
                     </div>
                   </CardContent>
                 </Card>
@@ -376,7 +349,7 @@ const StaffTours = () => {
         </CardContent>
       </Card>
 
-      {/* Dialog Form – giống admin */}
+      {/* Dialog Form */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="sticky top-0 bg-white border-b p-6 z-10">
@@ -404,20 +377,11 @@ const StaffTours = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <label className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium">
                   <ImagePlus className="h-4 w-4" /> Chọn ảnh từ máy
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                 </label>
                 {preview && (
                   <div className="flex-1">
-                    <img
-                      src={preview}
-                      alt="Preview"
-                      className="w-full h-48 object-cover rounded-xl border shadow-sm"
-                    />
+                    <img src={preview} alt="Preview" className="w-full h-48 object-cover rounded-xl border shadow-sm" />
                   </div>
                 )}
               </div>
@@ -437,9 +401,7 @@ const StaffTours = () => {
                   </Label>
                   <Input
                     value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     placeholder="Bà Nà Hills Adventure"
                     className="mt-1"
                   />
@@ -450,9 +412,7 @@ const StaffTours = () => {
                   </Label>
                   <Input
                     value={formData.price}
-                    onChange={(e) =>
-                      setFormData({ ...formData, price: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                     placeholder="1.200.000"
                     className="mt-1"
                   />
@@ -461,12 +421,7 @@ const StaffTours = () => {
                   <Label>Giá gốc (khuyến mãi)</Label>
                   <Input
                     value={formData.originalPrice}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        originalPrice: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
                     placeholder="1.500.000"
                     className="mt-1"
                   />
@@ -477,9 +432,7 @@ const StaffTours = () => {
                   </Label>
                   <Input
                     value={formData.duration}
-                    onChange={(e) =>
-                      setFormData({ ...formData, duration: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                     placeholder="1 ngày"
                     className="mt-1"
                   />
@@ -499,9 +452,7 @@ const StaffTours = () => {
                   <Label>Số người tối đa</Label>
                   <Input
                     value={formData.groupSize}
-                    onChange={(e) =>
-                      setFormData({ ...formData, groupSize: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, groupSize: e.target.value })}
                     placeholder="10-15 người"
                     className="mt-1"
                   />
@@ -510,9 +461,7 @@ const StaffTours = () => {
                   <Label>Địa Điểm</Label>
                   <Input
                     value={formData.departure}
-                    onChange={(e) =>
-                      setFormData({ ...formData, departure: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, departure: e.target.value })}
                     placeholder="Đà Nẵng"
                     className="mt-1"
                   />
@@ -521,25 +470,18 @@ const StaffTours = () => {
                   <Label>Danh mục</Label>
                   <Input
                     value={formData.category}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     placeholder="Biển, Văn hóa..."
                     className="mt-1"
                   />
                 </div>
+
+                {/* ✅ CHANGE: giống admin -> không còn select trạng thái */}
                 <div>
                   <Label>Trạng thái</Label>
-                  <select
-                    className="w-full mt-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({ ...formData, status: e.target.value })
-                    }
-                  >
-                    <option value="draft">Nháp</option>
-                    <option value="published">Đã xuất bản</option>
-                  </select>
+                  <div className="mt-2">
+                    <Badge variant="default">Đã xuất bản</Badge>
+                  </div>
                 </div>
               </div>
             </div>
@@ -556,9 +498,7 @@ const StaffTours = () => {
                   <Label>Điểm nổi bật (mỗi dòng 1 mục)</Label>
                   <Textarea
                     value={formData.highlights.join("\n")}
-                    onChange={(e) =>
-                      handleArrayChange("highlights", e.target.value)
-                    }
+                    onChange={(e) => handleArrayChange("highlights", e.target.value)}
                     placeholder="Biển xanh cát trắng&#10;Khám phá di tích&#10;Ẩm thực đặc sản"
                     rows={5}
                     className="mt-1"
@@ -568,9 +508,7 @@ const StaffTours = () => {
                   <Label>Bao gồm (mỗi dòng 1 mục)</Label>
                   <Textarea
                     value={formData.includes.join("\n")}
-                    onChange={(e) =>
-                      handleArrayChange("includes", e.target.value)
-                    }
+                    onChange={(e) => handleArrayChange("includes", e.target.value)}
                     placeholder="Xe đưa đón&#10;Hướng dẫn viên&#10;Bữa trưa"
                     rows={5}
                     className="mt-1"
@@ -579,14 +517,10 @@ const StaffTours = () => {
               </div>
 
               <div>
-                <Label className="flex items-center gap-1">
-                  Mô tả chi tiết tour
-                </Label>
+                <Label className="flex items-center gap-1">Mô tả chi tiết tour</Label>
                 <Textarea
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Viết mô tả chi tiết về hành trình, lịch trình, trải nghiệm, lưu ý..."
                   rows={8}
                   className="mt-1"

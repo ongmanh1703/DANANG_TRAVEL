@@ -47,6 +47,8 @@ import StaffDestinations from "./pages/staff/Destinations";
 import StaffNews from "./pages/staff/News";
 import StaffBookings from "./pages/staff/StaffBookings";
 import StaffReviews from "./pages/staff/StaffReviews";
+import StaffProfilePage from "./pages/staff/StaffProfile";
+
 
 import ScrollToTop from "./components/ScrollToTop";
 
@@ -122,6 +124,7 @@ const App = () => (
           <Route path="/staff/news" element={<StaffLayout><StaffNews /></StaffLayout>} />
           <Route path="/staff/bookings" element={<StaffLayout><StaffBookings /></StaffLayout>} />
           <Route path="/staff/reviews" element={<StaffLayout><StaffReviews /></StaffLayout>} />
+          <Route path="/staff/profile" element={<StaffProfilePage />} />
 
           <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/payment-failed" element={<PaymentFailed />} />

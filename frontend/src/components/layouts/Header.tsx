@@ -87,11 +87,11 @@ const Header = () => {
               </div>
               <div className="hidden sm:flex items-center gap-1">
                 <Phone className="h-4 w-4" />
-                <span>+84 236 3888 888</span>
+                <span>+84 798283079</span>
               </div>
               <div className="hidden md:flex items-center gap-1">
                 <Mail className="h-4 w-4" />
-                <span>info@danangtravel.vn</span>
+                <span>infodanangtravel@gmail.com</span>
               </div>
             </div>
 

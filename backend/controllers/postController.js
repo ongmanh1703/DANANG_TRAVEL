@@ -47,7 +47,6 @@ exports.getPostById = async (req, res) => {
       return res.status(404).json({ message: 'Bài viết không tồn tại hoặc đang nháp' });
     }
 
-    // Tăng lượt xem
     post.views = (post.views || 0) + 1;
     await post.save();
 
@@ -81,7 +80,6 @@ exports.getFeaturedNews = async (req, res) => {
 // Tạo bài viết mới (ADMIN + STAFF)
 exports.createPost = async (req, res) => {
   try {
-    // ✅ Cho cả admin + staff
     if (!req.user || !['admin', 'staff'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Chỉ admin hoặc staff mới được tạo bài viết' });
     }
@@ -149,10 +147,9 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// Cập nhật bài viết (ADMIN + STAFF)
+// ✅ Cập nhật bài viết (ADMIN + STAFF) - FIX overwrite images theo existingImagesJson
 exports.updatePost = async (req, res) => {
   try {
-    // ✅ Cho cả admin + staff
     if (!req.user || !['admin', 'staff'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Chỉ admin hoặc staff mới được sửa bài viết' });
     }
@@ -168,13 +165,14 @@ exports.updatePost = async (req, res) => {
     const {
       title, content, category, place, placeType, price, videoUrl,
       status, foodType, newsType, isFeatured,
-      overview, history, notes
+      overview, history, notes,
+      existingImagesJson // ✅ NEW
     } = req.body;
 
-    const newImages = req.files?.map(f => `/uploads/${f.filename}`) || [];
-
+    const uploadedImages = req.files?.map(f => `/uploads/${f.filename}`) || [];
     const newCategory = category || post.category;
 
+    // Validate như cũ
     if (newCategory === 'am_thuc' && !foodType && category) {
       return res.status(400).json({ message: 'Vui lòng chọn loại món ăn' });
     }
@@ -194,6 +192,7 @@ exports.updatePost = async (req, res) => {
       }
     }
 
+    // Update field
     post.title = title !== undefined ? title.trim() : post.title;
     post.content = content !== undefined ? content.trim() : post.content;
     post.category = newCategory;
@@ -202,8 +201,27 @@ exports.updatePost = async (req, res) => {
     post.price = price !== undefined ? (price ? Number(price) : null) : post.price;
     post.videoUrl = videoUrl !== undefined ? videoUrl : post.videoUrl;
     post.status = status || post.status;
-    post.images = newImages.length > 0 ? newImages : post.images;
 
+    // ✅ IMAGE FIX
+    let keptImages = null;
+    if (typeof existingImagesJson === 'string') {
+      try {
+        keptImages = JSON.parse(existingImagesJson);
+        if (!Array.isArray(keptImages)) keptImages = [];
+      } catch {
+        keptImages = [];
+      }
+    }
+
+    if (keptImages !== null) {
+      // overwrite images theo danh sách còn giữ (có thể [])
+      post.images = [...keptImages, ...uploadedImages];
+    } else {
+      // fallback cũ
+      post.images = uploadedImages.length > 0 ? uploadedImages : post.images;
+    }
+
+    // Category logic như cũ
     if (newCategory === 'am_thuc') {
       post.foodType = foodType || post.foodType;
       post.newsType = null;

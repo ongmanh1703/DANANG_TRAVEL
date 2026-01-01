@@ -1,15 +1,24 @@
 // src/pages/Cuisine.tsx
-import Header from '@/components/layouts/Header';
-import Footer from '@/components/layouts/Footer';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Star, MapPin, Clock, Search, Filter, Utensils } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import Header from "@/components/layouts/Header";
+import Footer from "@/components/layouts/Footer";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Star, Search, Filter, Utensils, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { toast } from "@/components/ui/use-toast";
+
+// ✅ GoogleMapView
+import GoogleMapView from "@/components/maps/GoogleMapView";
 
 const API_URL = "/api/posts";
 const BACKEND_URL = "http://localhost:5000";
@@ -21,10 +30,10 @@ interface Dish {
   images: string[];
   price?: number;
   foodType?: string;
-  status: 'draft' | 'published';
+  status: "draft" | "published";
   createdAt: string;
-  ratingAverage: number;   // THÊM
-  ratingCount: number;     // THÊM
+  ratingAverage: number;
+  ratingCount: number;
 }
 
 const Cuisine = () => {
@@ -34,13 +43,21 @@ const Cuisine = () => {
   const [filterType, setFilterType] = useState("all");
   const [filterPrice, setFilterPrice] = useState("all");
 
+  // ✅ Map modal state
+  const [openMap, setOpenMap] = useState(false);
+  const [mapQuery, setMapQuery] = useState("");
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
+    lat: 16.0544,
+    lng: 108.2022,
+  });
+
   const navigate = useNavigate();
 
   const foodTypes = [
-    { value: 'all', label: 'Tất cả' },
-    { value: 'mon_chinh', label: 'Món chính' },
-    { value: 'mon_nhe', label: 'Món nhẹ' },
-    { value: 'trang_mieng', label: 'Tráng miệng' },
+    { value: "all", label: "Tất cả" },
+    { value: "mon_chinh", label: "Món chính" },
+    { value: "mon_nhe", label: "Món nhẹ" },
+    { value: "trang_mieng", label: "Tráng miệng" },
   ];
 
   useEffect(() => {
@@ -58,7 +75,11 @@ const Cuisine = () => {
         throw new Error("Không thể tải dữ liệu");
       }
     } catch (err) {
-      toast({ title: "Lỗi", description: "Không thể tải dữ liệu", variant: "destructive" });
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải dữ liệu",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -70,17 +91,35 @@ const Cuisine = () => {
     return `${p.toLocaleString()}đ`;
   };
 
+  // ✅ Mở modal + center theo vị trí user
   const handleSearchDish = (dishName: string) => {
     const query = `${dishName} Đà Nẵng`;
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
+    setMapQuery(query);
+    setOpenMap(true);
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setMapCenter({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => setMapCenter({ lat: 16.0544, lng: 108.2022 }),
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
   };
 
-  const filteredDishes = dishes.filter(dish => {
-    const matchesSearch = dish.title.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredDishes = dishes.filter((dish) => {
+    const matchesSearch = dish.title
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || dish.foodType === filterType;
-    
+
     const price = dish.price || 0;
-    const matchesPrice = filterPrice === "all" ||
+    const matchesPrice =
+      filterPrice === "all" ||
       (filterPrice === "low" && price < 20000) ||
       (filterPrice === "medium" && price >= 20000 && price <= 50000) ||
       (filterPrice === "high" && price > 50000);
@@ -91,7 +130,7 @@ const Cuisine = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent" />
       </div>
     );
   }
@@ -99,14 +138,63 @@ const Cuisine = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+
+      {/* ✅ MAP MODAL */}
+      {openMap && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <p className="font-bold text-lg">Bản đồ</p>
+                <p className="text-sm text-muted-foreground line-clamp-1">
+                  
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    window.open(
+                      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        mapQuery
+                      )}`,
+                      "_blank"
+                    );
+                  }}
+                >
+                  Mở Google Maps
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setOpenMap(false)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <GoogleMapView lat={mapCenter.lat} lng={mapCenter.lng} zoom={13} />
+            </div>
+          </div>
+        </div>
+      )}
+
       <main>
-        {/* Hero Section */}
+        {/* Hero */}
         <section className="relative h-[70vh] flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-accent/90 to-primary/90 z-10" />
           <div className="absolute inset-0">
             {dishes[0]?.images?.[0] ? (
               <img
-                src={dishes[0].images[0].startsWith('http') ? dishes[0].images[0] : `${BACKEND_URL}${dishes[0].images[0]}`}
+                src={
+                  dishes[0].images[0].startsWith("http")
+                    ? dishes[0].images[0]
+                    : `${BACKEND_URL}${dishes[0].images[0]}`
+                }
                 alt="Ẩm thực Đà Nẵng"
                 className="w-full h-full object-cover"
               />
@@ -139,6 +227,7 @@ const Cuisine = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+
                 <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger>
                     <SelectValue placeholder="Loại món" />
@@ -151,6 +240,7 @@ const Cuisine = () => {
                     ))}
                   </SelectContent>
                 </Select>
+
                 <Select value={filterPrice} onValueChange={setFilterPrice}>
                   <SelectTrigger>
                     <SelectValue placeholder="Mức giá" />
@@ -162,6 +252,7 @@ const Cuisine = () => {
                     <SelectItem value="high">Trên 50k</SelectItem>
                   </SelectContent>
                 </Select>
+
                 <Button className="hero-gradient text-white">
                   <Filter className="h-4 w-4 mr-2" />
                   Lọc
@@ -171,26 +262,38 @@ const Cuisine = () => {
           </div>
         </section>
 
-        {/* Featured Dishes */}
+        {/* Dishes */}
         <section className="py-6">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
-              <Badge className="mb-4 sunset-gradient text-white">Món ăn đặc sản</Badge>
+              <Badge className="mb-4 sunset-gradient text-white">
+                Món ăn đặc sản
+              </Badge>
               <h2 className="text-4xl font-bold mb-4">
-                Những món ăn <span className="text-accent">không thể bỏ qua</span>
+                Những món ăn{" "}
+                <span className="text-accent">không thể bỏ qua</span>
               </h2>
             </div>
 
             {filteredDishes.length === 0 ? (
-              <p className="text-center text-muted-foreground py-12">Không tìm thấy món ăn nào</p>
+              <p className="text-center text-muted-foreground py-12">
+                Không tìm thấy món ăn nào
+              </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredDishes.map((dish) => (
-                  <Card key={dish._id} className="group card-hover border-0 shadow-lg overflow-hidden">
+                  <Card
+                    key={dish._id}
+                    className="group card-hover border-0 shadow-lg overflow-hidden"
+                  >
                     <div className="relative overflow-hidden">
                       {dish.images?.[0] ? (
                         <img
-                          src={dish.images[0].startsWith('http') ? dish.images[0] : `${BACKEND_URL}${dish.images[0]}`}
+                          src={
+                            dish.images[0].startsWith("http")
+                              ? dish.images[0]
+                              : `${BACKEND_URL}${dish.images[0]}`
+                          }
                           alt={dish.title}
                           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500"
                         />
@@ -201,7 +304,8 @@ const Cuisine = () => {
                       )}
                       <div className="absolute top-4 right-4">
                         <Badge className="bg-black/20 text-white">
-                          {foodTypes.find(t => t.value === dish.foodType)?.label || "Món ăn"}
+                          {foodTypes.find((t) => t.value === dish.foodType)
+                            ?.label || "Món ăn"}
                         </Badge>
                       </div>
                     </div>
@@ -213,11 +317,17 @@ const Cuisine = () => {
                           {dish.ratingAverage > 0 ? (
                             <>
                               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              <span className="font-semibold">{dish.ratingAverage.toFixed(1)}</span>
-                              <span className="text-muted-foreground">({dish.ratingCount})</span>
+                              <span className="font-semibold">
+                                {dish.ratingAverage.toFixed(1)}
+                              </span>
+                              <span className="text-muted-foreground">
+                                ({dish.ratingCount})
+                              </span>
                             </>
                           ) : (
-                            <span className="text-muted-foreground text-xs">Chưa có đánh giá</span>
+                            <span className="text-muted-foreground text-xs">
+                              Chưa có đánh giá
+                            </span>
                           )}
                         </div>
                       </div>
@@ -256,9 +366,10 @@ const Cuisine = () => {
           </div>
         </section>
       </main>
+
       <Footer />
     </div>
   );
 };
 
-export default Cuisine; 
+export default Cuisine;

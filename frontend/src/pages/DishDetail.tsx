@@ -44,7 +44,8 @@ const parseEmbed = (url: string) => {
   const yt = url.match(
     /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/
   );
-  if (yt) return { kind: "iframe", src: `https://www.youtube.com/embed/${yt[1]}?rel=0` };
+  if (yt)
+    return { kind: "iframe", src: `https://www.youtube.com/embed/${yt[1]}?rel=0` };
   return null;
 };
 
@@ -119,6 +120,10 @@ const DishDetail = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // ✅ THÊM: phân trang đánh giá kiểu "Xem thêm"
+  const REVIEWS_STEP = 3;
+  const [visibleReviews, setVisibleReviews] = useState(REVIEWS_STEP);
+
   useEffect(() => {
     const fetchDish = async () => {
       try {
@@ -130,6 +135,9 @@ const DishDetail = () => {
         setDish(data);
         const firstImg = data.images?.[0];
         setMainImage(firstImg ? getImageUrl(firstImg) : "");
+
+        // ✅ reset khi đổi món / load lại
+        setVisibleReviews(REVIEWS_STEP);
 
         const token = localStorage.getItem("token");
         if (token) {
@@ -224,6 +232,9 @@ const DishDetail = () => {
           ratingCount,
         };
       });
+
+      // ✅ đảm bảo user thấy đánh giá ngay dù đang thu gọn
+      setVisibleReviews((v) => Math.max(v, REVIEWS_STEP));
 
       setIsEditing(false);
       toast({ title: "Thành công!", description: "Đánh giá đã được gửi!" });
@@ -394,7 +405,6 @@ const DishDetail = () => {
 
             <p className="mt-4 text-gray-700 leading-relaxed">{review.content}</p>
 
-            {/* Reply từ Đà Nẵng Travel – giống NewsDetail */}
             {review.reply && (
               <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                 <div className="flex gap-4">
@@ -424,6 +434,12 @@ const DishDetail = () => {
       </div>
     );
   };
+
+  // ✅ danh sách reviews hiển thị theo "Xem thêm"
+  const totalReviews = dish.reviews.length;
+  const shownReviews = dish.reviews.slice(0, visibleReviews);
+  const canShowMore = visibleReviews < totalReviews;
+  const canCollapse = totalReviews > REVIEWS_STEP && visibleReviews > REVIEWS_STEP;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -549,7 +565,10 @@ const DishDetail = () => {
             </h3>
 
             {(!userReview || isEditing) && (
-              <form onSubmit={handleReviewSubmit} className="mb-10 pb-10 border-b-2">
+              <form
+                onSubmit={handleReviewSubmit}
+                className="mb-10 pb-10 border-b-2"
+              >
                 <div className="mb-6">
                   <p className="font-medium mb-3 text-lg">Chọn số sao của bạn</p>
                   <div className="flex gap-3">
@@ -613,18 +632,47 @@ const DishDetail = () => {
             )}
 
             <div className="space-y-8">
-              {dish.reviews.length === 0 ? (
+              {totalReviews === 0 ? (
                 <div className="text-center py-20 text-gray-500 italic text-lg">
                   Chưa có đánh giá nào. Hãy là người đầu tiên chia sẻ trải nghiệm!
                 </div>
               ) : (
-                dish.reviews.map((review) => (
-                  <ReviewCard
-                    key={review._id}
-                    review={review}
-                    isUser={userReview?._id === review._id}
-                  />
-                ))
+                <>
+                  {shownReviews.map((review) => (
+                    <ReviewCard
+                      key={review._id}
+                      review={review}
+                      isUser={userReview?._id === review._id}
+                    />
+                  ))}
+
+                  {(canShowMore || canCollapse) && (
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      {canShowMore && (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setVisibleReviews((v) =>
+                              Math.min(v + REVIEWS_STEP, totalReviews)
+                            )
+                          }
+                        >
+                          Xem thêm (
+                          {Math.min(REVIEWS_STEP, totalReviews - visibleReviews)})
+                        </Button>
+                      )}
+
+                      {canCollapse && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => setVisibleReviews(REVIEWS_STEP)}
+                        >
+                          Thu gọn
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>

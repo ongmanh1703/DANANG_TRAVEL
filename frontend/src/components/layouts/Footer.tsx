@@ -1,15 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import {
-  MapPin,
-  Phone,
-  Mail,
-  Facebook,
-  Instagram,
-  Youtube,
-  Send,
-} from "lucide-react";
+import { MapPin, Phone, Mail, Facebook, Instagram } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
@@ -29,26 +20,30 @@ const Footer = () => {
 
   return (
     <footer className="bg-gradient-to-b from-background to-muted/20 pt-16 pb-8">
-      <div className="container mx-auto px-4">
-        {/* Newsletter Section */}
-        <div className="hero-gradient rounded-2xl p-8 mb-12">
-          <div className="text-center text-white">
-            <h3 className="text-2xl md:text-3xl font-bold mb-4">
-              Đăng ký nhận thông tin du lịch mới nhất
-            </h3>
-            <p className="text-white/90 mb-6 max-w-2xl mx-auto">
-              Nhận những ưu đãi hấp dẫn, tour mới và cẩm nang du lịch thú vị từ
-              chúng tôi
-            </p>
-          </div>
-        </div>
+      {/* ICON RUNG */}
+      <style>{`
+        @keyframes ring {
+          0% { transform: rotate(0); }
+          5% { transform: rotate(15deg); }
+          10% { transform: rotate(-15deg); }
+          15% { transform: rotate(15deg); }
+          20% { transform: rotate(-15deg); }
+          25% { transform: rotate(0); }
+          100% { transform: rotate(0); }
+        }
+        .icon-ring {
+          animation: ring 2.5s infinite;
+          transform-origin: center;
+        }
+      `}</style>
 
-        {/* Main Footer Content */}
+      <div className="container mx-auto px-4">
+        {/* MAIN FOOTER */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
-          {/* Company Info */}
+          {/* COMPANY */}
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-10 h-10 rounded-full border-2 border-blue-500 flex items-center justify-center overflow-hidden">
+              <div className="w-10 h-10 rounded-full border-2 border-blue-500 overflow-hidden">
                 <img
                   src={logo}
                   alt="Logo Đà Nẵng Travel"
@@ -62,37 +57,42 @@ const Footer = () => {
                 </p>
               </div>
             </div>
+
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Chúng tôi cam kết mang đến những trải nghiệm du lịch tuyệt vời
-              nhất tại Đà Nẵng và các vùng lân cận. Với đội ngũ chuyên nghiệp và
-              dịch vụ tận tâm.
+              nhất tại Đà Nẵng và các vùng lân cận.
             </p>
 
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 text-sm">
-                <MapPin className="h-4 w-4 text-primary" />
-                <span>123 Nguyễn Văn Linh, Quận Thanh Khê, Đà Nẵng</span>
+            <div className="space-y-3 text-sm">
+              {/* ĐỊA CHỈ – RUNG – KHÔNG CLICK */}
+              <div className="flex items-center space-x-2">
+                <MapPin className="h-4 w-4 text-primary icon-ring" />
+                <span>123 Nguyễn Như Đỗ, Phường Cẩm Lệ, Đà Nẵng</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm">
-                <Phone className="h-4 w-4 text-primary" />
-                <span>+84 236 3888 888</span>
+
+              {/* MAIL – RUNG – KHÔNG CLICK */}
+              <div className="flex items-center space-x-2">
+                <Mail className="h-4 w-4 text-primary icon-ring" />
+                <span>infodanangtravel@gmail.com</span>
               </div>
-              <div className="flex items-center space-x-2 text-sm">
-                <Mail className="h-4 w-4 text-primary" />
-                <span>info@danangtravel.vn</span>
+
+              {/* PHONE – RUNG – KHÔNG CLICK */}
+              <div className="flex items-center space-x-2">
+                <Phone className="h-4 w-4 text-primary icon-ring" />
+                <span>+84 798 283 079</span>
               </div>
             </div>
           </div>
 
-          {/* Quick Links */}
+          {/* QUICK LINKS */}
           <div>
             <h4 className="font-semibold mb-4">Liên kết nhanh</h4>
             <ul className="space-y-2">
-              {quickLinks.map((link, index) => (
-                <li key={index}>
+              {quickLinks.map((link, idx) => (
+                <li key={idx}>
                   <Link
                     to={link.href}
-                    className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                    className="text-muted-foreground hover:text-primary text-sm"
                   >
                     {link.label}
                   </Link>
@@ -101,75 +101,81 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Services */}
+          {/* SERVICES */}
           <div>
             <h4 className="font-semibold mb-4">Dịch vụ</h4>
             <ul className="space-y-2">
-              {services.map((service, index) => (
-                <li key={index}>
+              {services.map((s, idx) => (
+                <li key={idx}>
                   <Link
-                    to={service.href}
-                    className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                    to={s.href}
+                    className="text-muted-foreground hover:text-primary text-sm"
                   >
-                    {service.label}
+                    {s.label}
                   </Link>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Popular Destinations */}
-          <div>
-            <div className="flex items-center space-x-4">
+          {/* SOCIAL ICONS */}
+          <div className="flex flex-col items-center space-y-3">
+            {/* ICONS */}
+            <div className="flex items-center space-x-6">
               <a
-                href="https://facebook.com"
+                href="https://www.facebook.com/share/17qVHP3QDu/"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:text-primary"
-                >
+                <Button variant="ghost" size="icon">
                   <Facebook className="h-5 w-5" />
                 </Button>
               </a>
+
               <a
                 href="https://instagram.com"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:text-primary"
-                >
+                <Button variant="ghost" size="icon">
                   <Instagram className="h-5 w-5" />
                 </Button>
               </a>
+
               <a
-                href="https://youtube.com"
+                href="https://mail.google.com/mail/?view=cm&fs=1&to=infodanangtravel@gmail.com"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:text-primary"
-                >
-                  <Youtube className="h-5 w-5" />
+                <Button variant="ghost" size="icon">
+                  <Mail className="h-5 w-5" />
                 </Button>
               </a>
             </div>
+
+            {/* TEXT EFFECT */}
+            <style>{`
+              @keyframes textBlink {
+                0% { opacity: 1; }
+                50% { opacity: 0.4; }
+                100% { opacity: 1; }
+              }
+              .blink-text {
+                animation: textBlink 1.6s infinite ease-in-out;
+              }
+            `}</style>
+
+            <p className="text-sm text-primary font-semibold blink-text text-center flex items-center gap-2">
+              <span className="text-pink-500">📩</span>
+              Hãy liên hệ với chúng tôi nếu bạn cần hỗ trợ!
+            </p>
           </div>
         </div>
+
         <Separator className="mb-8" />
 
-        {/* Bottom Footer */}
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <div className="text-sm text-muted-foreground mb-4 md:mb-0">
-            © 2025 Du lịch Đà Nẵng. Tất cả quyền được bảo lưu.
-          </div>
+        <div className="text-sm text-muted-foreground text-center">
+          © 2025 Du lịch Đà Nẵng. Tất cả quyền được bảo lưu.
         </div>
       </div>
     </footer>

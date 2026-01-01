@@ -93,6 +93,10 @@ const BookTour = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // ✅ THÊM: hiển thị 3 đánh giá + nút xem thêm/thu gọn
+  const REVIEWS_STEP = 3;
+  const [visibleReviews, setVisibleReviews] = useState(REVIEWS_STEP);
+
   // 👉 email lấy từ Profile (localStorage "user")
   const [userEmail, setUserEmail] = useState("");
 
@@ -165,6 +169,8 @@ const BookTour = () => {
         if (allRes.ok) {
           const data = await allRes.json();
           setReviews(data);
+          // ✅ reset khi load lại danh sách review
+          setVisibleReviews(REVIEWS_STEP);
         }
 
         if (userRes?.ok) {
@@ -223,9 +229,13 @@ const BookTour = () => {
 
       setReviews((prev) => {
         const exists = prev.some((r) => r._id === updatedReview._id);
-        return exists
+        const next = exists
           ? prev.map((r) => (r._id === updatedReview._id ? updatedReview : r))
           : [updatedReview, ...prev];
+
+        // ✅ đảm bảo nhìn thấy review mới khi đang thu gọn
+        setVisibleReviews((v) => Math.max(v, REVIEWS_STEP));
+        return next;
       });
 
       toast({
@@ -485,7 +495,6 @@ const BookTour = () => {
               {review.content}
             </p>
 
-            {/* PHẢN HỒI TỪ ĐÀ NẴNG TRAVEL – giống NewsDetail / DishDetail / DestinationDetail */}
             {review.reply && (
               <div className="mt-6 ml-12 pl-6 border-l-4 border-emerald-500 bg-emerald-50 rounded-r-xl p-5">
                 <div className="flex gap-4">
@@ -497,7 +506,6 @@ const BookTour = () => {
                     />
                   </div>
                   <div className="flex-1">
-                    {/* ✅ Chỉ 1 lần chữ Đà Nẵng Travel */}
                     <div className="font-bold text-emerald-800 mb-1">
                       Đà Nẵng Travel
                     </div>
@@ -516,6 +524,12 @@ const BookTour = () => {
       </div>
     );
   };
+
+  // ✅ danh sách review theo "Xem thêm"
+  const totalReviews = reviews.length;
+  const shownReviews = reviews.slice(0, visibleReviews);
+  const canShowMore = visibleReviews < totalReviews;
+  const canCollapse = totalReviews > REVIEWS_STEP && visibleReviews > REVIEWS_STEP;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -695,13 +709,43 @@ const BookTour = () => {
                       nghiệm!
                     </div>
                   ) : (
-                    reviews.map((review) => (
-                      <ReviewCard
-                        key={review._id}
-                        review={review}
-                        isUser={userReview?._id === review._id}
-                      />
-                    ))
+                    <>
+                      {shownReviews.map((review) => (
+                        <ReviewCard
+                          key={review._id}
+                          review={review}
+                          isUser={userReview?._id === review._id}
+                        />
+                      ))}
+
+                      {(canShowMore || canCollapse) && (
+                        <div className="flex items-center justify-center gap-3 pt-2">
+                          {canShowMore && (
+                            <Button
+                              variant="outline"
+                              onClick={() =>
+                                setVisibleReviews((v) =>
+                                  Math.min(v + REVIEWS_STEP, totalReviews)
+                                )
+                              }
+                            >
+                              Xem thêm (
+                              {Math.min(REVIEWS_STEP, totalReviews - visibleReviews)}
+                              )
+                            </Button>
+                          )}
+
+                          {canCollapse && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => setVisibleReviews(REVIEWS_STEP)}
+                            >
+                              Thu gọn
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -747,7 +791,6 @@ const BookTour = () => {
                     </div>
                   </div>
 
-                  {/* EMAIL LẤY TỪ PROFILE – CHỈ HIỂN THỊ, KHÔNG CHO SỬA Ở ĐÂY */}
                   <div>
                     <Label>Email nhận hóa đơn</Label>
                     <Input
